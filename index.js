@@ -1,71 +1,49 @@
 import express from "express";
 import cors from "cors";
-import fetch from "node-fetch";
 
 const app = express();
 
-// ==============================
-// MIDDLEWARE
-// ==============================
+/* ==============================
+   MIDDLEWARE
+============================== */
 app.use(cors({ origin: "*" }));
 app.use(express.json());
 
-// ==============================
-// CONFIG
-// ==============================
-const PORT = process.env.PORT || 3000;
+/* ==============================
+   CONFIG
+============================== */
+const PORT = process.env.PORT || 8080;
 
-// MUST be something like:
-// https://xsen-mcp-production.up.railway.app/videos
+// Browser-safe REST video endpoint
+// Example: https://xsen-mcp-production.up.railway.app/videos
 let VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL || "";
-
-// normalize trailing slash bugs
 VIDEO_AGENT_URL = VIDEO_AGENT_URL.replace(/\/+$/, "");
 
-// ==============================
-// HELPERS
-// ==============================
+/* ==============================
+   HELPERS
+============================== */
 function isVideoRequest(text = "") {
   return /(video|videos|highlight|highlights|clip|clips|replay|watch)/i.test(text);
-}
-
-function normalizeText(text = "") {
-  // replace smart quotes that break matching
-  return text.replace(/[“”‘’]/g, '"');
 }
 
 function refineVideoQuery(text = "") {
   return text
     .toLowerCase()
-
-    // remove filler phrases
     .replace(/show me|watch|give me|find|please|can you|i want to see/gi, "")
-
-    // normalize known players
     .replace(/baker mayfield|baker/gi, "baker mayfield oklahoma")
-
-    // normalize teams
-    .replace(/ou|soon ers|soon ers|sooners/gi, "oklahoma")
-
-    // normalize highlights intent
+    .replace(/ou|sooners/gi, "oklahoma")
     .replace(/videos?|clips?|replays?/gi, "")
     .replace(/highlights?/gi, "highlights")
-
-    // opponents
     .replace(/bama|alabama/gi, "alabama")
     .replace(/texas|longhorns/gi, "texas")
     .replace(/osu|cowboys|pokes/gi, "oklahoma state")
-
-    // cleanup
     .replace(/\s+/g, " ")
     .trim();
 }
 
-
-
-// ==============================
-// HEALTH CHECK
-// ==============================
+/* ==============================
+   HEALTH CHECK
+============================== */
 app.get("/", (req, res) => {
   res.json({
     status: "ok",
@@ -75,20 +53,16 @@ app.get("/", (req, res) => {
   });
 });
 
-// ==============================
-// MAIN CHAT ENDPOINT
-// ==============================
+/* ==============================
+   MAIN CHAT ENDPOINT
+============================== */
 app.post("/chat", async (req, res) => {
   try {
-    let userText =
+    const userText =
       req.body?.message?.text ||
       req.body?.message ||
       req.body?.text ||
       "";
-
-    userText = normalizeText(userText);
-
-    console.log("📨 Incoming message:", userText);
 
     if (!userText) {
       return res.json({
@@ -96,19 +70,14 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    // ==============================
-    // 🎬 VIDEO ROUTING (REST)
-    // ==============================
+    /* ---------- VIDEO REQUEST ---------- */
     if (isVideoRequest(userText) && VIDEO_AGENT_URL) {
       const refinedQuery = refineVideoQuery(userText);
-
       const fetchUrl =
         `${VIDEO_AGENT_URL}?query=${encodeURIComponent(refinedQuery)}&limit=3`;
 
-      console.log("🎬 VIDEO FETCH URL:", fetchUrl);
-
       try {
-        const videoResp = await fetch(fetchUrl, { method: "GET" });
+        const videoResp = await fetch(fetchUrl);
 
         if (!videoResp.ok) {
           throw new Error(`Video API HTTP ${videoResp.status}`);
@@ -119,56 +88,48 @@ app.post("/chat", async (req, res) => {
           ? videoData.results
           : [];
 
-        console.log(`🎬 Video results returned: ${results.length}`);
-
         if (!results.length) {
-         return res.json({
-  response: `Boomer Sooner! I couldn't find an exact match.
+          return res.json({
+            response: `Boomer Sooner! I couldn't find an exact match.
 
 Try one of these:
 • Oklahoma highlights
 • Baker Mayfield Oklahoma
 • OU vs Alabama highlights`
-});
-
+          });
+        }
 
         let reply = "Boomer Sooner! Here are some highlights:\n\n";
-
         results.forEach(v => {
           reply += `🎬 ${v.title}\n${v.url}\n\n`;
         });
 
-        return res.json({
-          response: reply.trim()
-        });
+        return res.json({ response: reply.trim() });
 
-      } catch (err) {
-        console.error("❌ Video API error:", err.message);
+      } catch (videoErr) {
+        console.error("Video API error:", videoErr.message);
         return res.json({
-          response:
-            "Sorry, Sooner — I had trouble reaching the video library."
+          response: "Sorry, Sooner — I had trouble reaching the video library."
         });
       }
     }
 
-    // ==============================
-    // DEFAULT RESPONSE
-    // ==============================
+    /* ---------- DEFAULT RESPONSE ---------- */
     return res.json({
       response: `Boomer Sooner! I heard you say: "${userText}".`
     });
 
   } catch (err) {
-    console.error("❌ Orchestrator error:", err);
+    console.error("Orchestrator error:", err);
     return res.json({
       response: "Sorry, Sooner — something went wrong on my end."
     });
   }
 });
 
-// ==============================
-// START SERVER
-// ==============================
-app.listen(PORT, () => {
+/* ==============================
+   START SERVER
+============================== */
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
