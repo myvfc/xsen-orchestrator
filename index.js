@@ -122,16 +122,15 @@ app.post("/chat", async (req, res) => {
         console.log(`🎬 Video results returned: ${results.length}`);
 
         if (!results.length) {
-          return res.json({
-            response:
-              'Boomer Sooner! I couldn’t find an exact match.
+         return res.json({
+  response: `Boomer Sooner! I couldn't find an exact match.
+
 Try one of these:
 • Oklahoma highlights
 • Baker Mayfield Oklahoma
-• OU vs Alabama highlights'
+• OU vs Alabama highlights`
+});
 
-          });
-        }
 
         let reply = "Boomer Sooner! Here are some highlights:\n\n";
 
