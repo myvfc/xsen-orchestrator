@@ -124,7 +124,12 @@ app.post("/chat", async (req, res) => {
         if (!results.length) {
           return res.json({
             response:
-              "Boomer Sooner! I couldn’t find a matching highlight. Try another player or game."
+              Boomer Sooner! I couldn’t find an exact match.
+Try one of these:
+• Oklahoma highlights
+• Baker Mayfield Oklahoma
+• OU vs Alabama highlights
+
           });
         }
 
