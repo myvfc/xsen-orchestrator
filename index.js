@@ -36,12 +36,16 @@ function normalizeText(text = "") {
 
 function refineVideoQuery(text = "") {
   return text
+    .toLowerCase()
+    .replace(/show me|watch|give me|find|please/i, "")
+    .replace(/highlights?/i, "oklahoma highlights")
     .replace(/the play/i, "")
     .replace(/longhorns/i, "Texas")
     .replace(/pokes|cowboys/i, "Oklahoma State")
     .replace(/\s+/g, " ")
     .trim();
 }
+
 
 // ==============================
 // HEALTH CHECK
