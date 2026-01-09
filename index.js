@@ -106,9 +106,12 @@ Try one of these:
         }
 
         let reply = "Boomer Sooner! Here are some highlights:\n\n";
-        results.forEach(v => {
-          reply += `🎬 ${v.title}\n${v.url}\n\n`;
-        });
+
+results.forEach((v, i) => {
+  reply += `🎬 ${i + 1}. ${v.title}\n`;
+  reply += `${v.url}\n\n`;
+});
+
 
         return res.json({ response: reply.trim() });
       } catch (videoErr) {
