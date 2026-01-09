@@ -15,16 +15,23 @@ app.use(express.json());
 // ==============================
 const PORT = process.env.PORT || 3000;
 
-// Browser-safe Video API (REST, not MCP)
-const VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL;
-// Example:
+// MUST be something like:
 // https://xsen-mcp-production.up.railway.app/videos
+let VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL || "";
+
+// normalize trailing slash bugs
+VIDEO_AGENT_URL = VIDEO_AGENT_URL.replace(/\/+$/, "");
 
 // ==============================
 // HELPERS
 // ==============================
 function isVideoRequest(text = "") {
   return /(video|videos|highlight|highlights|clip|clips|replay|watch)/i.test(text);
+}
+
+function normalizeText(text = "") {
+  // replace smart quotes that break matching
+  return text.replace(/[“”‘’]/g, '"');
 }
 
 function refineVideoQuery(text = "") {
@@ -43,7 +50,8 @@ app.get("/", (req, res) => {
   res.json({
     status: "ok",
     service: "XSEN Orchestrator",
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    videoEndpoint: VIDEO_AGENT_URL || "NOT SET"
   });
 });
 
@@ -52,13 +60,15 @@ app.get("/", (req, res) => {
 // ==============================
 app.post("/chat", async (req, res) => {
   try {
-    const userText =
+    let userText =
       req.body?.message?.text ||
       req.body?.message ||
       req.body?.text ||
       "";
 
-    console.log("Incoming message:", userText);
+    userText = normalizeText(userText);
+
+    console.log("📨 Incoming message:", userText);
 
     if (!userText) {
       return res.json({
@@ -72,18 +82,24 @@ app.post("/chat", async (req, res) => {
     if (isVideoRequest(userText) && VIDEO_AGENT_URL) {
       const refinedQuery = refineVideoQuery(userText);
 
-      try {
-        const url =
-          `${VIDEO_AGENT_URL}?query=${encodeURIComponent(refinedQuery)}&limit=3`;
+      const fetchUrl =
+        `${VIDEO_AGENT_URL}?query=${encodeURIComponent(refinedQuery)}&limit=3`;
 
-        const videoResp = await fetch(url);
+      console.log("🎬 VIDEO FETCH URL:", fetchUrl);
+
+      try {
+        const videoResp = await fetch(fetchUrl, { method: "GET" });
 
         if (!videoResp.ok) {
           throw new Error(`Video API HTTP ${videoResp.status}`);
         }
 
         const videoData = await videoResp.json();
-        const results = videoData?.results || [];
+        const results = Array.isArray(videoData?.results)
+          ? videoData.results
+          : [];
+
+        console.log(`🎬 Video results returned: ${results.length}`);
 
         if (!results.length) {
           return res.json({
@@ -103,7 +119,7 @@ app.post("/chat", async (req, res) => {
         });
 
       } catch (err) {
-        console.error("Video API error:", err.message);
+        console.error("❌ Video API error:", err.message);
         return res.json({
           response:
             "Sorry, Sooner — I had trouble reaching the video library."
@@ -119,7 +135,7 @@ app.post("/chat", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Orchestrator error:", err);
+    console.error("❌ Orchestrator error:", err);
     return res.json({
       response: "Sorry, Sooner — something went wrong on my end."
     });
