@@ -58,6 +58,12 @@ app.get("/", (req, res) => {
   });
 });
 
+// Railway-friendly health endpoint
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
+
+
 /* ==============================
    MAIN CHAT ENDPOINT
 ============================== */
