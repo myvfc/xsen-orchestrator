@@ -37,14 +37,30 @@ function normalizeText(text = "") {
 function refineVideoQuery(text = "") {
   return text
     .toLowerCase()
-    .replace(/show me|watch|give me|find|please/i, "")
-    .replace(/highlights?/i, "oklahoma highlights")
-    .replace(/the play/i, "")
-    .replace(/longhorns/i, "Texas")
-    .replace(/pokes|cowboys/i, "Oklahoma State")
+
+    // remove filler phrases
+    .replace(/show me|watch|give me|find|please|can you|i want to see/gi, "")
+
+    // normalize known players
+    .replace(/baker mayfield|baker/gi, "baker mayfield oklahoma")
+
+    // normalize teams
+    .replace(/ou|soon ers|soon ers|sooners/gi, "oklahoma")
+
+    // normalize highlights intent
+    .replace(/videos?|clips?|replays?/gi, "")
+    .replace(/highlights?/gi, "highlights")
+
+    // opponents
+    .replace(/bama|alabama/gi, "alabama")
+    .replace(/texas|longhorns/gi, "texas")
+    .replace(/osu|cowboys|pokes/gi, "oklahoma state")
+
+    // cleanup
     .replace(/\s+/g, " ")
     .trim();
 }
+
 
 
 // ==============================
