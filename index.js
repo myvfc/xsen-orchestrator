@@ -1,11 +1,23 @@
 import express from "express";
+import cors from "cors";
 
 const app = express();
+
+/**
+ * ==============================
+ * MIDDLEWARE
+ * ==============================
+ */
+app.use(cors({
+  origin: "*" // later restrict to boomerbot.fun
+}));
 app.use(express.json());
 
-// ==============================
-// CONFIG
-// ==============================
+/**
+ * ==============================
+ * CONFIG
+ * ==============================
+ */
 const PORT = process.env.PORT || 3000;
 const PMG_SECRET = process.env.PMG_SECRET;
 
@@ -13,9 +25,11 @@ const PMG_SECRET = process.env.PMG_SECRET;
 const VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL;
 const VIDEO_AGENT_KEY = process.env.VIDEO_AGENT_KEY;
 
-// ==============================
-// HELPERS
-// ==============================
+/**
+ * ==============================
+ * HELPERS
+ * ==============================
+ */
 function isVideoRequest(text = "") {
   return /(video|videos|highlight|highlights|clip|clips|replay|watch)/i.test(text);
 }
@@ -29,9 +43,11 @@ function refineVideoQuery(text = "") {
     .trim();
 }
 
-// ==============================
-// HEALTH CHECK
-// ==============================
+/**
+ * ==============================
+ * HEALTH CHECK
+ * ==============================
+ */
 app.get("/", (req, res) => {
   res.json({
     status: "ok",
@@ -40,21 +56,28 @@ app.get("/", (req, res) => {
   });
 });
 
-// ==============================
-// MAIN CHAT ENDPOINT
-// ==============================
+/**
+ * ==============================
+ * MAIN CHAT ENDPOINT
+ * ==============================
+ */
 app.post("/chat", async (req, res) => {
   try {
-    // 1️⃣ Authenticate PMG
+    /**
+     * 1️⃣ AUTH HANDLING
+     * - PMG calls REQUIRE Bearer token
+     * - Browser UI calls do NOT
+     */
     const auth = req.headers.authorization || "";
-    if (auth !== `Bearer ${PMG_SECRET}`) {
-      console.warn("❌ Unauthorized request");
-      return res.status(401).json({
-        reply: "Unauthorized."
-      });
+    const isPMG = auth === `Bearer ${PMG_SECRET}`;
+
+    if (!isPMG && PMG_SECRET) {
+      console.log("🌐 Browser UI request (no auth)");
     }
 
-    // 2️⃣ Extract user message
+    /**
+     * 2️⃣ EXTRACT USER MESSAGE
+     */
     const userText =
       req.body?.message?.text ||
       req.body?.message ||
@@ -65,73 +88,11 @@ app.post("/chat", async (req, res) => {
 
     if (!userText) {
       return res.json({
-        reply: "Boomer Sooner! What can I help you with?"
+        response: "Boomer Sooner! What can I help you with?"
       });
     }
 
-    // ==============================
-    // 🎬 VIDEO ROUTING
-    // ==============================
-    if (isVideoRequest(userText) && VIDEO_AGENT_URL) {
-      const refinedQuery = refineVideoQuery(userText);
-      console.log("🎬 Video intent detected:", refinedQuery);
+    /**
+     * ==============================
+     * 🎬 VIDEO ROUTIN*
 
-      try {
-        const videoResp = await fetch(VIDEO_AGENT_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(VIDEO_AGENT_KEY
-              ? { Authorization: `Bearer ${VIDEO_AGENT_KEY}` }
-              : {})
-          },
-          body: JSON.stringify({ query: refinedQuery })
-        });
-
-        if (!videoResp.ok) {
-          throw new Error(`Video agent HTTP ${videoResp.status}`);
-        }
-
-        const videoData = await videoResp.json();
-
-        if (!videoData?.videos || videoData.videos.length === 0) {
-          return res.json({
-            reply:
-              "Boomer Sooner! I couldn’t find a matching highlight. Try another player or game."
-          });
-        }
-
-        let reply = "Boomer Sooner! Here are some highlights:\n\n";
-        videoData.videos.slice(0, 3).forEach(v => {
-          reply += `🎬 ${v.title}\n${v.url}\n\n`;
-        });
-
-        return res.json({ reply: reply.trim() });
-      } catch (err) {
-        console.error("❌ Video agent error:", err.message);
-        return res.json({
-          reply:
-            "Sorry, Sooner — I had trouble reaching the video library. Try again in a moment."
-        });
-      }
-    }
-
-    // ==============================
-    // DEFAULT RESPONSE
-    // ==============================
-    return res.json({
-      reply: `Boomer Sooner! I heard you say: "${userText}".`
-    });
-
-  } catch (err) {
-    console.error("❌ Orchestrator error:", err);
-    return res.json({
-      reply: "Sorry, Sooner — something went wrong on my end."
-    });
-  }
-});
-
-// ==============================
-app.listen(PORT, () => {
-  console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
-});
