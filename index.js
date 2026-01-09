@@ -124,7 +124,7 @@ app.post("/chat", async (req, res) => {
         if (!results.length) {
           return res.json({
             response:
-              Boomer Sooner! I couldn’t find an exact match.
+              "Boomer Sooner! I couldn’t find an exact match."
 Try one of these:
 • Oklahoma highlights
 • Baker Mayfield Oklahoma
