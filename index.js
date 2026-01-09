@@ -4,18 +4,25 @@ import fetch from "node-fetch";
 
 const app = express();
 
-// Middleware
+// ==============================
+// MIDDLEWARE
+// ==============================
 app.use(cors({ origin: "*" }));
 app.use(express.json());
 
-// Config
+// ==============================
+// CONFIG
+// ==============================
 const PORT = process.env.PORT || 3000;
-const PMG_SECRET = process.env.PMG_SECRET;
 
+// Browser-safe Video API (REST, not MCP)
 const VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL;
-const VIDEO_AGENT_KEY = process.env.VIDEO_AGENT_KEY;
+// Example:
+// https://xsen-mcp-production.up.railway.app/videos
 
-// Helpers
+// ==============================
+// HELPERS
+// ==============================
 function isVideoRequest(text = "") {
   return /(video|videos|highlight|highlights|clip|clips|replay|watch)/i.test(text);
 }
@@ -29,7 +36,9 @@ function refineVideoQuery(text = "") {
     .trim();
 }
 
-// Health check
+// ==============================
+// HEALTH CHECK
+// ==============================
 app.get("/", (req, res) => {
   res.json({
     status: "ok",
@@ -38,16 +47,11 @@ app.get("/", (req, res) => {
   });
 });
 
-// Main chat endpoint
+// ==============================
+// MAIN CHAT ENDPOINT
+// ==============================
 app.post("/chat", async (req, res) => {
   try {
-    const auth = req.headers.authorization || "";
-    const isPMG = auth === `Bearer ${PMG_SECRET}`;
-
-    if (!isPMG && PMG_SECRET) {
-      console.log("Browser UI request");
-    }
-
     const userText =
       req.body?.message?.text ||
       req.body?.message ||
@@ -62,50 +66,54 @@ app.post("/chat", async (req, res) => {
       });
     }
 
+    // ==============================
+    // 🎬 VIDEO ROUTING (REST)
+    // ==============================
     if (isVideoRequest(userText) && VIDEO_AGENT_URL) {
       const refinedQuery = refineVideoQuery(userText);
 
       try {
-        const videoResp = await fetch(VIDEO_AGENT_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(VIDEO_AGENT_KEY
-              ? { Authorization: `Bearer ${VIDEO_AGENT_KEY}` }
-              : {})
-          },
-          body: JSON.stringify({ query: refinedQuery })
-        });
+        const url =
+          `${VIDEO_AGENT_URL}?query=${encodeURIComponent(refinedQuery)}&limit=3`;
+
+        const videoResp = await fetch(url);
 
         if (!videoResp.ok) {
-          throw new Error("Video agent error");
+          throw new Error(`Video API HTTP ${videoResp.status}`);
         }
 
         const videoData = await videoResp.json();
+        const results = videoData?.results || [];
 
-        if (!videoData?.videos || videoData.videos.length === 0) {
+        if (!results.length) {
           return res.json({
             response:
-              "Boomer Sooner! I could not find a matching highlight."
+              "Boomer Sooner! I couldn’t find a matching highlight. Try another player or game."
           });
         }
 
         let reply = "Boomer Sooner! Here are some highlights:\n\n";
-        videoData.videos.slice(0, 3).forEach(v => {
-          reply += `${v.title}\n${v.url}\n\n`;
+
+        results.forEach(v => {
+          reply += `🎬 ${v.title}\n${v.url}\n\n`;
         });
 
-        return res.json({ response: reply.trim() });
+        return res.json({
+          response: reply.trim()
+        });
 
       } catch (err) {
-        console.error("Video agent error:", err.message);
+        console.error("Video API error:", err.message);
         return res.json({
           response:
-            "Sorry, Sooner. I had trouble reaching the video library."
+            "Sorry, Sooner — I had trouble reaching the video library."
         });
       }
     }
 
+    // ==============================
+    // DEFAULT RESPONSE
+    // ==============================
     return res.json({
       response: `Boomer Sooner! I heard you say: "${userText}".`
     });
@@ -113,14 +121,14 @@ app.post("/chat", async (req, res) => {
   } catch (err) {
     console.error("Orchestrator error:", err);
     return res.json({
-      response: "Sorry, Sooner. Something went wrong."
+      response: "Sorry, Sooner — something went wrong on my end."
     });
   }
 });
 
-// Start server
+// ==============================
+// START SERVER
+// ==============================
 app.listen(PORT, () => {
-  console.log(`XSEN Orchestrator running on port ${PORT}`);
+  console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
-
-
