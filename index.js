@@ -12,7 +12,12 @@ app.use(express.json());
 /* ==============================
    CONFIG
 ============================== */
-const PORT = process.env.PORT || 8080;
+const PORT = Number(process.env.PORT);
+if (!PORT) {
+  console.error("❌ Missing process.env.PORT. Railway must provide it.");
+  process.exit(1);
+}
+
 
 // Browser-safe REST video endpoint
 // Example: https://xsen-mcp-production.up.railway.app/videos
