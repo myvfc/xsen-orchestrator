@@ -18,7 +18,6 @@ if (!PORT) {
   process.exit(1);
 }
 
-
 // Browser-safe REST video endpoint
 // Example: https://xsen-mcp-production.up.railway.app/videos
 let VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL || "";
@@ -47,7 +46,7 @@ function refineVideoQuery(text = "") {
 }
 
 /* ==============================
-   HEALTH CHECK
+   HEALTHCHECKS
 ============================== */
 app.get("/", (req, res) => {
   res.json({
@@ -58,11 +57,8 @@ app.get("/", (req, res) => {
   });
 });
 
-// Railway-friendly health endpoint
-app.get("/health", (req, res) => {
-  res.status(200).send("OK");
-});
-
+// Railway / platform-friendly health endpoint
+app.get("/health", (req, res) => res.status(200).send("OK"));
 
 /* ==============================
    MAIN CHAT ENDPOINT
@@ -81,7 +77,6 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    /* ---------- VIDEO REQUEST ---------- */
     if (isVideoRequest(userText) && VIDEO_AGENT_URL) {
       const refinedQuery = refineVideoQuery(userText);
       const fetchUrl =
@@ -116,7 +111,6 @@ Try one of these:
         });
 
         return res.json({ response: reply.trim() });
-
       } catch (videoErr) {
         console.error("Video API error:", videoErr.message);
         return res.json({
@@ -125,11 +119,9 @@ Try one of these:
       }
     }
 
-    /* ---------- DEFAULT RESPONSE ---------- */
     return res.json({
       response: `Boomer Sooner! I heard you say: "${userText}".`
     });
-
   } catch (err) {
     console.error("Orchestrator error:", err);
     return res.json({
@@ -144,3 +136,4 @@ Try one of these:
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
+
