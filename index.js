@@ -66,7 +66,7 @@ function refineVideoQuery(text = "") {
 }
 
 /* ==============================
-   OPENAI CALL (GATED)
+   OPENAI CALL (RESPONSES API)
 ============================== */
 async function callOpenAI(userText) {
   const systemPrompt = `
@@ -77,7 +77,7 @@ You must NOT invent statistics, scores, dates, or exact numbers.
 If unsure, speak generally and honestly.
 `;
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+  const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -86,8 +86,8 @@ If unsure, speak generally and honestly.
     body: JSON.stringify({
       model: "gpt-4.1-mini",
       temperature: 0.5,
-      max_tokens: 300,
-      messages: [
+      max_output_tokens: 300,
+      input: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userText }
       ]
@@ -95,11 +95,18 @@ If unsure, speak generally and honestly.
   });
 
   if (!res.ok) {
+    const errText = await res.text();
+    console.error("❌ OpenAI error:", errText);
     throw new Error(`OpenAI API error ${res.status}`);
   }
 
   const data = await res.json();
-  return data?.choices?.[0]?.message?.content || "";
+
+  return (
+    data.output_text ||
+    data.output?.[0]?.content?.[0]?.text ||
+    ""
+  );
 }
 
 /* ==============================
@@ -110,7 +117,8 @@ app.get("/", (req, res) => {
     status: "ok",
     service: "XSEN Orchestrator",
     uptime: process.uptime(),
-    videoEndpoint: VIDEO_AGENT_URL || "NOT SET"
+    videoEndpoint: VIDEO_AGENT_URL || "NOT SET",
+    llmEnabled: Boolean(OPENAI_API_KEY)
   });
 });
 
@@ -132,10 +140,11 @@ app.post("/chat", async (req, res) => {
         response: "Boomer Sooner! What can I help you with?"
       });
     }
-console.log("🧠 LLM gate check:", {
-  narrative: isNarrativeQuestion(userText),
-  hasOpenAIKey: Boolean(process.env.OPENAI_API_KEY)
-});
+
+    console.log("🧠 LLM gate check:", {
+      narrative: isNarrativeQuestion(userText),
+      hasOpenAIKey: Boolean(OPENAI_API_KEY)
+    });
 
     /* 🎬 VIDEO ROUTE */
     if (isVideoRequest(userText) && VIDEO_AGENT_URL) {
@@ -179,14 +188,7 @@ console.log("🧠 LLM gate check:", {
     }
 
     /* 🧠 OPENAI (GATED) */
-    if (isNarrativeQuestion(userText)) {
-      if (!OPENAI_API_KEY) {
-        return res.json({
-          response:
-            "I can explain moments like that soon — highlights are available now."
-        });
-      }
-
+    if (isNarrativeQuestion(userText) && OPENAI_API_KEY) {
       const llmReply = await callOpenAI(userText);
       if (llmReply) {
         return res.json({ response: llmReply.trim() });
