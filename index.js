@@ -132,6 +132,10 @@ app.post("/chat", async (req, res) => {
         response: "Boomer Sooner! What can I help you with?"
       });
     }
+console.log("🧠 LLM gate check:", {
+  narrative: isNarrativeQuestion(userText),
+  hasOpenAIKey: Boolean(process.env.OPENAI_API_KEY)
+});
 
     /* 🎬 VIDEO ROUTE */
     if (isVideoRequest(userText) && VIDEO_AGENT_URL) {
