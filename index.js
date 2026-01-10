@@ -22,7 +22,7 @@ if (!PORT) {
 const VIDEO_AGENT_URL =
   (process.env.VIDEO_AGENT_URL || "").replace(/\/+$/, "");
 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 /* ==============================
    INTENT HELPERS
@@ -66,43 +66,40 @@ function refineVideoQuery(text = "") {
 }
 
 /* ==============================
-   CLAUDE CALL (GATED)
+   OPENAI CALL (GATED)
 ============================== */
-async function callClaude(userText) {
-  const prompt = `
+async function callOpenAI(userText) {
+  const systemPrompt = `
 You are Boomer Bot, an Oklahoma Sooners fan guide.
 
 You may explain history, legacy, and why moments mattered.
 You must NOT invent statistics, scores, dates, or exact numbers.
 If unsure, speak generally and honestly.
-
-Question:
-"${userText}"
 `;
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01"
+      "Authorization": `Bearer ${OPENAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: "claude-3-sonnet-20240229",
-      max_tokens: 300,
+      model: "gpt-4.1-mini",
       temperature: 0.5,
+      max_tokens: 300,
       messages: [
-        { role: "user", content: prompt }
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userText }
       ]
     })
   });
 
   if (!res.ok) {
-    throw new Error(`Claude API error ${res.status}`);
+    throw new Error(`OpenAI API error ${res.status}`);
   }
 
   const data = await res.json();
-  return data?.content?.[0]?.text || "";
+  return data?.choices?.[0]?.message?.content || "";
 }
 
 /* ==============================
@@ -177,9 +174,16 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    /* 🧠 CLAUDE (GATED) */
-    if (isNarrativeQuestion(userText) && ANTHROPIC_API_KEY) {
-      const llmReply = await callClaude(userText);
+    /* 🧠 OPENAI (GATED) */
+    if (isNarrativeQuestion(userText)) {
+      if (!OPENAI_API_KEY) {
+        return res.json({
+          response:
+            "I can explain moments like that soon — highlights are available now."
+        });
+      }
+
+      const llmReply = await callOpenAI(userText);
       if (llmReply) {
         return res.json({ response: llmReply.trim() });
       }
