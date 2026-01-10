@@ -96,17 +96,33 @@ If unsure, speak generally and honestly.
 
   if (!res.ok) {
     const errText = await res.text();
-    console.error("❌ OpenAI error:", errText);
+    console.error("❌ OpenAI raw error:", errText);
     throw new Error(`OpenAI API error ${res.status}`);
   }
 
   const data = await res.json();
 
-  return (
-    data.output_text ||
-    data.output?.[0]?.content?.[0]?.text ||
-    ""
-  );
+  // 🔍 FULL RAW RESPONSE LOG (temporary – for debugging)
+  console.log("🧠 OpenAI raw response:", JSON.stringify(data, null, 2));
+
+  // ✅ SAFEST POSSIBLE EXTRACTION
+  if (typeof data.output_text === "string") {
+    return data.output_text;
+  }
+
+  if (Array.isArray(data.output)) {
+    for (const item of data.output) {
+      if (Array.isArray(item.content)) {
+        for (const part of item.content) {
+          if (part.type === "output_text" && part.text) {
+            return part.text;
+          }
+        }
+      }
+    }
+  }
+
+  throw new Error("No usable text in OpenAI response");
 }
 
 /* ==============================
@@ -189,6 +205,8 @@ app.post("/chat", async (req, res) => {
 
     /* 🧠 OPENAI (GATED) */
     if (isNarrativeQuestion(userText) && OPENAI_API_KEY) {
+      console.log("🧠 Calling OpenAI for:", userText);
+
       const llmReply = await callOpenAI(userText);
       if (llmReply) {
         return res.json({ response: llmReply.trim() });
