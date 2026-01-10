@@ -108,7 +108,7 @@ If unsure, speak generally and honestly.
 
   const data = await res.json();
 
-  console.log("🧠 OpenAI raw response:", JSON.stringify(data, null, 2));
+
 
   if (typeof data.output_text === "string") {
     return data.output_text;
