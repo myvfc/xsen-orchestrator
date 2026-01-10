@@ -15,25 +15,22 @@ app.use(express.json());
 ============================== */
 const PORT = Number(process.env.PORT);
 if (!PORT) {
-  console.error("❌ Missing process.env.PORT. Railway must provide it.");
+  console.error("❌ Missing process.env.PORT");
   process.exit(1);
 }
 
-// Browser-safe REST video endpoint
-// Example: https://xsen-mcp-production.up.railway.app/videos
-let VIDEO_AGENT_URL = process.env.VIDEO_AGENT_URL || "";
-VIDEO_AGENT_URL = VIDEO_AGENT_URL.replace(/\/+$/, "");
+const VIDEO_AGENT_URL =
+  (process.env.VIDEO_AGENT_URL || "").replace(/\/+$/, "");
+
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 /* ==============================
    INTENT HELPERS
 ============================== */
-
-// Video intent
 function isVideoRequest(text = "") {
   return /(video|videos|highlight|highlights|clip|clips|replay|watch)/i.test(text);
 }
 
-// Narrative / explanation intent (LLM-safe)
 function isNarrativeQuestion(text = "") {
   const patterns = [
     /\bwhy\b/i,
@@ -49,12 +46,10 @@ function isNarrativeQuestion(text = "") {
   return patterns.some(p => p.test(text));
 }
 
-// Precision / fact request (LLM NOT allowed)
 function isPrecisionRequest(text = "") {
   return /(exact|exactly|how many|yards|tds|points|score|record|date|year|stats)/i.test(text);
 }
 
-// Normalize & improve video search
 function refineVideoQuery(text = "") {
   return text
     .toLowerCase()
@@ -68,6 +63,46 @@ function refineVideoQuery(text = "") {
     .replace(/osu|cowboys|pokes/gi, "oklahoma state")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/* ==============================
+   CLAUDE CALL (GATED)
+============================== */
+async function callClaude(userText) {
+  const prompt = `
+You are Boomer Bot, an Oklahoma Sooners fan guide.
+
+You may explain history, legacy, and why moments mattered.
+You must NOT invent statistics, scores, dates, or exact numbers.
+If unsure, speak generally and honestly.
+
+Question:
+"${userText}"
+`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify({
+      model: "claude-3-sonnet-20240229",
+      max_tokens: 300,
+      temperature: 0.5,
+      messages: [
+        { role: "user", content: prompt }
+      ]
+    })
+  });
+
+  if (!res.ok) {
+    throw new Error(`Claude API error ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data?.content?.[0]?.text || "";
 }
 
 /* ==============================
@@ -101,50 +136,40 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    /* ==============================
-       🎬 VIDEO ROUTE (TOOL)
-    ============================== */
+    /* 🎬 VIDEO ROUTE */
     if (isVideoRequest(userText) && VIDEO_AGENT_URL) {
       const refinedQuery = refineVideoQuery(userText);
       const fetchUrl =
         `${VIDEO_AGENT_URL}?query=${encodeURIComponent(refinedQuery)}&limit=3`;
 
-      try {
-        const videoResp = await fetch(fetchUrl);
-        if (!videoResp.ok) {
-          throw new Error(`Video API HTTP ${videoResp.status}`);
-        }
-
-        const videoData = await videoResp.json();
-        const results = Array.isArray(videoData?.results)
-          ? videoData.results
-          : [];
-
-        if (!results.length) {
-          return res.json({
-            response:
-              "Boomer Sooner! I couldn’t find a match.\n\nTry:\n• Oklahoma highlights\n• Baker Mayfield Oklahoma\n• OU vs Alabama highlights"
-          });
-        }
-
-        let reply = "Boomer Sooner! Here are some highlights:\n\n";
-        results.forEach((v, i) => {
-          reply += `🎬 ${i + 1}. ${v.title}\n${v.url}\n\n`;
-        });
-
-        return res.json({ response: reply.trim() });
-
-      } catch (err) {
-        console.error("Video API error:", err.message);
+      const videoResp = await fetch(fetchUrl);
+      if (!videoResp.ok) {
         return res.json({
           response: "Sorry, Sooner — I had trouble reaching the video library."
         });
       }
+
+      const videoData = await videoResp.json();
+      const results = Array.isArray(videoData?.results)
+        ? videoData.results
+        : [];
+
+      if (!results.length) {
+        return res.json({
+          response:
+            "Boomer Sooner! I couldn’t find a match.\n\nTry:\n• Oklahoma highlights\n• Baker Mayfield Oklahoma\n• OU vs Alabama highlights"
+        });
+      }
+
+      let reply = "Boomer Sooner! Here are some highlights:\n\n";
+      results.forEach((v, i) => {
+        reply += `🎬 ${i + 1}. ${v.title}\n${v.url}\n\n`;
+      });
+
+      return res.json({ response: reply.trim() });
     }
 
-    /* ==============================
-       🔒 PRECISION BLOCK (NO LLM)
-    ============================== */
+    /* 🔒 PRECISION BLOCK */
     if (isPrecisionRequest(userText)) {
       return res.json({
         response:
@@ -152,20 +177,15 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    /* ==============================
-       🧠 LLM GATE (PLACEHOLDER)
-    ============================== */
-    if (isNarrativeQuestion(userText)) {
-      // 🔜 LLM will be called here later
-      return res.json({
-        response:
-          "That’s a great question. I’ll be able to explain moments like that soon — want highlights in the meantime?"
-      });
+    /* 🧠 CLAUDE (GATED) */
+    if (isNarrativeQuestion(userText) && ANTHROPIC_API_KEY) {
+      const llmReply = await callClaude(userText);
+      if (llmReply) {
+        return res.json({ response: llmReply.trim() });
+      }
     }
 
-    /* ==============================
-       FALLBACK
-    ============================== */
+    /* FALLBACK */
     return res.json({
       response:
         "Want highlights, history, or why a moment mattered?"
