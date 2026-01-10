@@ -69,6 +69,10 @@ function refineVideoQuery(text = "") {
    OPENAI CALL (RESPONSES API)
 ============================== */
 async function callOpenAI(userText) {
+  if (!OPENAI_API_KEY || typeof OPENAI_API_KEY !== "string") {
+    throw new Error("OPENAI_API_KEY is missing or invalid");
+  }
+
   const systemPrompt = `
 You are Boomer Bot, an Oklahoma Sooners fan guide.
 
@@ -77,12 +81,14 @@ You must NOT invent statistics, scores, dates, or exact numbers.
 If unsure, speak generally and honestly.
 `;
 
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${OPENAI_API_KEY.trim()}`
+  };
+
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${OPENAI_API_KEY}`
-    },
+    headers,
     body: JSON.stringify({
       model: "gpt-4.1-mini",
       temperature: 0.5,
@@ -102,10 +108,8 @@ If unsure, speak generally and honestly.
 
   const data = await res.json();
 
-  // 🔍 FULL RAW RESPONSE LOG (temporary – for debugging)
   console.log("🧠 OpenAI raw response:", JSON.stringify(data, null, 2));
 
-  // ✅ SAFEST POSSIBLE EXTRACTION
   if (typeof data.output_text === "string") {
     return data.output_text;
   }
@@ -124,6 +128,7 @@ If unsure, speak generally and honestly.
 
   throw new Error("No usable text in OpenAI response");
 }
+
 
 /* ==============================
    HEALTHCHECKS
