@@ -1,4 +1,4 @@
-please add "Add this log in the orchestrator, right before the fetch" to this html: import express from "express";
+import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
 
