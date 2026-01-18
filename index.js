@@ -178,14 +178,7 @@ app.post("/chat", async (req, res) => {
         .join("\n");
 
       return res.json({
-        response:
-`🧠 **OU Trivia**
-
-❓ ${q.question}
-
-${choices}
-
-Reply with **A, B, C, or D**`
+        response: `🧠 **OU Trivia**\n\n❓ ${q.question}\n\n${choices}\n\nReply with **A, B, C, or D**`
       });
     }
 
@@ -199,12 +192,45 @@ Reply with **A, B, C, or D**`
 
       const videoResp = await fetch(fetchUrl);
       const videoData = await videoResp.json();
-
-      const results = Array.isArray(videoData?.results)
-        ? videoData.results
-        : [];
+      const results = Array.isArray(videoData?.results) ? videoData.results : [];
 
       if (!results.length) {
         return res.json({
-          response:
-            "Boomer Sooner! Try:\n• Baker Mayfield highlights
+          response: `Boomer Sooner! Try:\n• Baker Mayfield highlights\n• OU vs Alabama\n• Oklahoma playoff highlights`
+        });
+      }
+
+      let reply = "Boomer Sooner! Here are some highlights:\n\n";
+      results.forEach((v, i) => {
+        reply += `🎬 ${i + 1}. ${v.title}\n${v.url}\n\n`;
+      });
+
+      return res.json({ response: reply.trim() });
+    }
+
+    /* ==========================
+       LLM
+    ========================== */
+    if (isNarrativeQuestion(userText) && OPENAI_API_KEY) {
+      const llmReply = await callOpenAI(userText);
+      if (llmReply) return res.json({ response: llmReply.trim() });
+    }
+
+    return res.json({
+      response: "Want highlights, trivia, history, or why a moment mattered?"
+    });
+
+  } catch (err) {
+    console.error("❌ Orchestrator error:", err);
+    return res.json({
+      response: "Sorry, Sooner — something went wrong on my end."
+    });
+  }
+});
+
+/* ==============================
+   START SERVER
+============================== */
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
+});
