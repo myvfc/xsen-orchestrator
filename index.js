@@ -47,12 +47,11 @@ function getText(body) {
     ""
   )
     .toString()
-    .trim()
-    .toLowerCase();
+    .trim();
 }
 
 function shuffle(array) {
-  return array.sort(() => Math.random() - 0.5);
+  return [...array].sort(() => Math.random() - 0.5);
 }
 
 function buildMCQ(q) {
@@ -67,7 +66,8 @@ function buildMCQ(q) {
   return {
     question: q.question,
     options,
-    correct: options.indexOf(q.answer)
+    correct: options.indexOf(q.answer),
+    explanation: q.explanation || q.answer
   };
 }
 
@@ -78,7 +78,7 @@ function buildMCQ(q) {
 app.post("/chat", (req, res) => {
   try {
     const sessionId = req.body?.sessionId || "default";
-    const text = getText(req.body);
+    const text = getText(req.body).toLowerCase();
 
     if (!sessions.has(sessionId)) {
       sessions.set(sessionId, {});
@@ -94,7 +94,7 @@ app.post("/chat", (req, res) => {
       session.active = false;
 
       return res.json({
-        reply: isCorrect
+        response: isCorrect
           ? `✅ **Correct!**\n\n${session.explain}\n\nType **trivia** for another.`
           : `❌ **Not quite.**\n\nCorrect answer: **${
               ["A", "B", "C", "D"][session.correct]
@@ -109,10 +109,10 @@ app.post("/chat", (req, res) => {
 
       session.active = true;
       session.correct = mcq.correct;
-      session.explain = q.explanation || q.answer;
+      session.explain = mcq.explanation;
 
       return res.json({
-        reply:
+        response:
           `🧠 **OU Trivia**\n\n❓ ${mcq.question}\n\n` +
           mcq.options
             .map((o, i) => `${["A", "B", "C", "D"][i]}. ${o}`)
@@ -123,12 +123,12 @@ app.post("/chat", (req, res) => {
 
     /* ------------------ DEFAULT ------------------ */
     return res.json({
-      reply: "Boomer Sooner! Ask me for trivia, highlights, or history."
+      response: "Boomer Sooner! Ask me for **trivia**, highlights, or history."
     });
 
   } catch (err) {
     console.error("❌ Orchestrator error:", err);
-    res.json({ reply: "Sorry Sooner — something went wrong on my end." });
+    res.json({ response: "Sorry Sooner — something went wrong on my end." });
   }
 });
 
