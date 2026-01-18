@@ -27,11 +27,11 @@ const VIDEO_AGENT_URL =
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 /* ==============================
-   TRIVIA LOAD (PHASE 1)
+   TRIVIA LOAD
 ============================== */
 const TRIVIA_PATH = path.join(process.cwd(), "trivia.json");
 let TRIVIA = [];
-let LAST_TRIVIA = null; // ✅ MEMORY
+let ACTIVE_TRIVIA = null;
 
 try {
   TRIVIA = JSON.parse(fs.readFileSync(TRIVIA_PATH, "utf8"));
@@ -49,6 +49,10 @@ function isVideoRequest(text = "") {
 
 function isTriviaRequest(text = "") {
   return /(trivia|quiz|question|test me|ask me trivia)/i.test(text);
+}
+
+function isAnswer(text = "") {
+  return /^[abcd1234]$/i.test(text.trim());
 }
 
 function isNarrativeQuestion(text = "") {
@@ -76,7 +80,7 @@ function getRandomTrivia() {
 }
 
 /* ==============================
-   VIDEO QUERY REFINER
+   VIDEO QUERY NORMALIZER
 ============================== */
 function refineVideoQuery(text = "") {
   return text
@@ -90,12 +94,10 @@ function refineVideoQuery(text = "") {
 }
 
 /* ==============================
-   OPENAI CALL (RESPONSES API)
+   OPENAI CALL
 ============================== */
 async function callOpenAI(userText) {
-  if (!OPENAI_API_KEY || typeof OPENAI_API_KEY !== "string") {
-    throw new Error("OPENAI_API_KEY missing or invalid");
-  }
+  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY missing");
 
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -110,12 +112,6 @@ async function callOpenAI(userText) {
       input: userText
     })
   });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error("❌ OpenAI error:", errText);
-    throw new Error(`OpenAI API error ${res.status}`);
-  }
 
   const data = await res.json();
   return data.output_text || "";
@@ -134,7 +130,7 @@ app.get("/", (req, res) => {
 });
 
 /* ==============================
-   MAIN CHAT ENDPOINT
+   CHAT ENDPOINT
 ============================== */
 app.post("/chat", async (req, res) => {
   try {
@@ -145,23 +141,41 @@ app.post("/chat", async (req, res) => {
       "";
 
     if (!userText) {
-      return res.json({
-        response: "Boomer Sooner! What can I help you with?"
-      });
+      return res.json({ response: "Boomer Sooner! What can I help you with?" });
     }
 
-    /* ==============================
-       🧠 TRIVIA QUESTION
-    ============================== */
+    /* ==========================
+       ANSWER MODE (MCQ)
+    ========================== */
+    if (isAnswer(userText) && ACTIVE_TRIVIA) {
+      const map = { a:0, b:1, c:2, d:3, 1:0, 2:1, 3:2, 4:3 };
+      const index = map[userText.toLowerCase()];
+      const chosen = ACTIVE_TRIVIA.choices[index];
+
+      const correct = chosen === ACTIVE_TRIVIA.answer;
+
+      const reply = correct
+        ? `✅ **Correct!**\n\n${ACTIVE_TRIVIA.explanation || ""}`
+        : `❌ **Not quite.**\n\nCorrect answer: **${ACTIVE_TRIVIA.answer}**\n${ACTIVE_TRIVIA.explanation || ""}`;
+
+      ACTIVE_TRIVIA = null;
+
+      return res.json({ response: reply });
+    }
+
+    /* ==========================
+       TRIVIA REQUEST
+    ========================== */
     if (isTriviaRequest(userText)) {
       const q = getRandomTrivia();
-      LAST_TRIVIA = q;
+      if (!q) return res.json({ response: "Trivia is warming up…" });
 
-      if (!q) {
-        return res.json({
-          response: "Trivia is warming up — try again in a moment!"
-        });
-      }
+      ACTIVE_TRIVIA = q;
+
+      const letters = ["A", "B", "C", "D"];
+      const choices = q.choices
+        .map((c, i) => `${letters[i]}. ${c}`)
+        .join("\n");
 
       return res.json({
         response:
@@ -169,33 +183,15 @@ app.post("/chat", async (req, res) => {
 
 ❓ ${q.question}
 
-_(Type “answer” to reveal)_`
+${choices}
+
+Reply with **A, B, C, or D**`
       });
     }
 
-    /* ==============================
-       ✅ TRIVIA ANSWER
-    ============================== */
-    if (/(answer|asnwer|anwser|answr|reveal)/i.test(userText)) {
-      if (!LAST_TRIVIA) {
-        return res.json({
-          response: "Ask me a trivia question first 😄"
-        });
-      }
-
-      return res.json({
-        response:
-`✅ **Answer**
-
-${LAST_TRIVIA.answer}
-
-Type *trivia* for another question`
-      });
-    }
-
-    /* ==============================
-       🎬 VIDEO ROUTE
-    ============================== */
+    /* ==========================
+       VIDEO REQUEST
+    ========================== */
     if (isVideoRequest(userText) && VIDEO_AGENT_URL) {
       const refinedQuery = refineVideoQuery(userText);
       const fetchUrl =
@@ -203,59 +199,12 @@ Type *trivia* for another question`
 
       const videoResp = await fetch(fetchUrl);
       const videoData = await videoResp.json();
-      const results = Array.isArray(videoData?.results) ? videoData.results : [];
+
+      const results = Array.isArray(videoData?.results)
+        ? videoData.results
+        : [];
 
       if (!results.length) {
         return res.json({
-          response: "Boomer Sooner! I couldn’t find a match."
-        });
-      }
-
-      let reply = "Boomer Sooner! Here are some highlights:\n\n";
-      results.forEach((v, i) => {
-        reply += `🎬 ${i + 1}. ${v.title}\n${v.url}\n\n`;
-      });
-
-      return res.json({ response: reply.trim() });
-    }
-
-    /* ==============================
-       🔒 PRECISION BLOCK
-    ============================== */
-    if (isPrecisionRequest(userText)) {
-      return res.json({
-        response:
-          "I don’t want to guess on exact numbers. Want highlights or context instead?"
-      });
-    }
-
-    /* ==============================
-       🧠 NARRATIVE (LLM)
-    ============================== */
-    if (isNarrativeQuestion(userText) && OPENAI_API_KEY) {
-      const llmReply = await callOpenAI(userText);
-      if (llmReply) return res.json({ response: llmReply.trim() });
-    }
-
-    /* ==============================
-       FALLBACK
-    ============================== */
-    return res.json({
-      response: "Want highlights, trivia, history, or why a moment mattered?"
-    });
-
-  } catch (err) {
-    console.error("❌ Orchestrator error:", err);
-    return res.json({
-      response: "Sorry, Sooner — something went wrong on my end."
-    });
-  }
-});
-
-/* ==============================
-   START SERVER
-============================== */
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
-});
-
+          response:
+            "Boomer Sooner! Try:\n• Baker Mayfield highlights
