@@ -31,6 +31,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 ============================== */
 const TRIVIA_PATH = path.join(process.cwd(), "trivia.json");
 let TRIVIA = [];
+let LAST_TRIVIA = null; // ✅ MEMORY
 
 try {
   TRIVIA = JSON.parse(fs.readFileSync(TRIVIA_PATH, "utf8"));
@@ -74,9 +75,9 @@ function getRandomTrivia() {
   return TRIVIA[Math.floor(Math.random() * TRIVIA.length)];
 }
 
-/**
- * 🔑 Preserve query meaning
- */
+/* ==============================
+   VIDEO QUERY REFINER
+============================== */
 function refineVideoQuery(text = "") {
   return text
     .toLowerCase()
@@ -121,20 +122,16 @@ async function callOpenAI(userText) {
 }
 
 /* ==============================
-   HEALTHCHECKS
+   HEALTH
 ============================== */
 app.get("/", (req, res) => {
   res.json({
     status: "ok",
     service: "XSEN Orchestrator",
-    uptime: process.uptime(),
-    videoEndpoint: VIDEO_AGENT_URL || "NOT SET",
-    llmEnabled: Boolean(OPENAI_API_KEY),
-    triviaLoaded: TRIVIA.length
+    triviaLoaded: TRIVIA.length,
+    uptime: process.uptime()
   });
 });
-
-app.get("/health", (req, res) => res.status(200).send("OK"));
 
 /* ==============================
    MAIN CHAT ENDPOINT
@@ -153,9 +150,12 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    /* 🧩 TRIVIA ROUTE (PHASE 1) */
+    /* ==============================
+       🧠 TRIVIA QUESTION
+    ============================== */
     if (isTriviaRequest(userText)) {
       const q = getRandomTrivia();
+      LAST_TRIVIA = q;
 
       if (!q) {
         return res.json({
@@ -169,39 +169,45 @@ app.post("/chat", async (req, res) => {
 
 ❓ ${q.question}
 
-_(Ask “answer” to reveal)_`
+_(Type “answer” to reveal)_`
       });
     }
 
-    /* 🎬 VIDEO ROUTE */
-    if (isVideoRequest(userText) && VIDEO_AGENT_URL) {
-      const refinedQuery = refineVideoQuery(userText);
-
-      const fetchUrl =
-        `${VIDEO_AGENT_URL}?query=${encodeURIComponent(refinedQuery)}&limit=3&ts=${Date.now()}`;
-
-      console.log("🎬 VIDEO SEARCH", {
-        originalUserText: userText,
-        refinedQuery,
-        fetchUrl
-      });
-
-      const videoResp = await fetch(fetchUrl);
-      if (!videoResp.ok) {
+    /* ==============================
+       ✅ TRIVIA ANSWER
+    ============================== */
+    if (/(answer|asnwer|anwser|answr|reveal)/i.test(userText)) {
+      if (!LAST_TRIVIA) {
         return res.json({
-          response: "Sorry, Sooner — I had trouble reaching the video library."
+          response: "Ask me a trivia question first 😄"
         });
       }
 
+      return res.json({
+        response:
+`✅ **Answer**
+
+${LAST_TRIVIA.answer}
+
+Type *trivia* for another question`
+      });
+    }
+
+    /* ==============================
+       🎬 VIDEO ROUTE
+    ============================== */
+    if (isVideoRequest(userText) && VIDEO_AGENT_URL) {
+      const refinedQuery = refineVideoQuery(userText);
+      const fetchUrl =
+        `${VIDEO_AGENT_URL}?query=${encodeURIComponent(refinedQuery)}&limit=3&ts=${Date.now()}`;
+
+      const videoResp = await fetch(fetchUrl);
       const videoData = await videoResp.json();
-      const results = Array.isArray(videoData?.results)
-        ? videoData.results
-        : [];
+      const results = Array.isArray(videoData?.results) ? videoData.results : [];
 
       if (!results.length) {
         return res.json({
-          response:
-            "Boomer Sooner! I couldn’t find a match.\n\nTry:\n• Baker Mayfield highlights\n• OU vs Alabama\n• Oklahoma playoff highlights"
+          response: "Boomer Sooner! I couldn’t find a match."
         });
       }
 
@@ -213,7 +219,9 @@ _(Ask “answer” to reveal)_`
       return res.json({ response: reply.trim() });
     }
 
-    /* 🔒 PRECISION BLOCK */
+    /* ==============================
+       🔒 PRECISION BLOCK
+    ============================== */
     if (isPrecisionRequest(userText)) {
       return res.json({
         response:
@@ -221,16 +229,17 @@ _(Ask “answer” to reveal)_`
       });
     }
 
-    /* 🧠 OPENAI (GATED) */
+    /* ==============================
+       🧠 NARRATIVE (LLM)
+    ============================== */
     if (isNarrativeQuestion(userText) && OPENAI_API_KEY) {
-      console.log("🧠 Calling OpenAI for:", userText);
       const llmReply = await callOpenAI(userText);
-      if (llmReply) {
-        return res.json({ response: llmReply.trim() });
-      }
+      if (llmReply) return res.json({ response: llmReply.trim() });
     }
 
-    /* FALLBACK */
+    /* ==============================
+       FALLBACK
+    ============================== */
     return res.json({
       response: "Want highlights, trivia, history, or why a moment mattered?"
     });
