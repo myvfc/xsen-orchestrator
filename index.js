@@ -38,6 +38,19 @@ const sessions = new Map();
 /*                         UTIL FUNCTIONS                              */
 /* ------------------------------------------------------------------ */
 
+function getText(body) {
+  return (
+    body?.message?.text ||
+    body?.message ||
+    body?.text ||
+    body?.input ||
+    ""
+  )
+    .toString()
+    .trim()
+    .toLowerCase();
+}
+
 function shuffle(array) {
   return array.sort(() => Math.random() - 0.5);
 }
@@ -64,8 +77,8 @@ function buildMCQ(q) {
 
 app.post("/chat", (req, res) => {
   try {
-    const { sessionId = "default", message = "" } = req.body;
-    const text = message.trim().toLowerCase();
+    const sessionId = req.body?.sessionId || "default";
+    const text = getText(req.body);
 
     if (!sessions.has(sessionId)) {
       sessions.set(sessionId, {});
@@ -73,47 +86,44 @@ app.post("/chat", (req, res) => {
 
     const session = sessions.get(sessionId);
 
-    /* ------------------ ANSWERING A QUESTION ------------------ */
+    /* ------------------ ANSWER MODE ------------------ */
     if (session.active && ["a", "b", "c", "d"].includes(text)) {
       const idx = { a: 0, b: 1, c: 2, d: 3 }[text];
-      const correct = session.correct;
 
-      if (idx === correct) {
-        session.active = false;
-        return res.json({
-          reply: `✅ Correct!\n\n${session.explain || ""}\n\nType "trivia" for another.`
-        });
-      } else {
-        session.active = false;
-        return res.json({
-          reply: `❌ Not quite.\nCorrect answer: ${
-            ["A", "B", "C", "D"][correct]
-          }\n\n${session.explain || ""}\n\nType "trivia" to try again.`
-        });
-      }
+      const isCorrect = idx === session.correct;
+      session.active = false;
+
+      return res.json({
+        reply: isCorrect
+          ? `✅ **Correct!**\n\n${session.explain}\n\nType **trivia** for another.`
+          : `❌ **Not quite.**\n\nCorrect answer: **${
+              ["A", "B", "C", "D"][session.correct]
+            }**\n\n${session.explain}\n\nType **trivia** to try again.`
+      });
     }
 
-    /* ------------------ REQUEST TRIVIA ------------------ */
+    /* ------------------ TRIVIA REQUEST ------------------ */
     if (text.includes("trivia")) {
       const q = TRIVIA[Math.floor(Math.random() * TRIVIA.length)];
       const mcq = buildMCQ(q);
 
       session.active = true;
       session.correct = mcq.correct;
-      session.explain = `📘 ${q.answer}`;
+      session.explain = q.explanation || q.answer;
 
       return res.json({
-        reply: `🧠 **OU Trivia**\n\n❓ ${mcq.question}\n\n` +
+        reply:
+          `🧠 **OU Trivia**\n\n❓ ${mcq.question}\n\n` +
           mcq.options
             .map((o, i) => `${["A", "B", "C", "D"][i]}. ${o}`)
             .join("\n") +
-          `\n\nReply with A, B, C, or D`
+          `\n\nReply with **A, B, C, or D**`
       });
     }
 
     /* ------------------ DEFAULT ------------------ */
     return res.json({
-      reply: "Want highlights, trivia, history, or why a moment mattered?"
+      reply: "Boomer Sooner! Ask me for trivia, highlights, or history."
     });
 
   } catch (err) {
@@ -129,5 +139,3 @@ app.post("/chat", (req, res) => {
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
-
-
