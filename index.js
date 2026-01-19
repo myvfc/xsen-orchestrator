@@ -106,7 +106,7 @@ app.post("/chat", (req, res) => {
       const isCorrect = idx === session.correct;
       session.active = false;
 
-     return res.json({
+    return res.json({
   response: isCorrect
     ? `✅ **Correct!** 🎉
 
@@ -131,6 +131,7 @@ Want to:
 
 Type **trivia** to try again or **video** to watch.`
 });
+
 
 
     /* ------------------ TRIVIA REQUEST ------------------ */
