@@ -55,19 +55,32 @@ function shuffle(array) {
 }
 
 function buildMCQ(q) {
-  const wrong = shuffle(
-    TRIVIA.filter(t => t.answer !== q.answer)
-      .slice(0, 3)
-      .map(t => t.answer)
+  // pool of plausible wrong answers
+  const pool = TRIVIA.filter(
+    t =>
+      t.answer !== q.answer &&
+      t.answer.length > 3 &&
+      Math.abs(t.answer.length - q.answer.length) < 15
   );
+
+  // random sample without repetition
+  const wrong = [];
+  const used = new Set();
+
+  while (wrong.length < 3 && pool.length > 0) {
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    if (!used.has(pick.answer)) {
+      used.add(pick.answer);
+      wrong.push(pick.answer);
+    }
+  }
 
   const options = shuffle([q.answer, ...wrong]);
 
   return {
     question: q.question,
     options,
-    correct: options.indexOf(q.answer),
-    explanation: q.explanation || q.answer
+    correct: options.indexOf(q.answer)
   };
 }
 
