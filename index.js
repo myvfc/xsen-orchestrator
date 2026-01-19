@@ -381,11 +381,17 @@ async function callMcp(baseUrl, userText) {
       .toLowerCase()
       .replace(/\b(score|game|final|result|what's|whats|get|show|tell me)\b/gi, "")
       .replace(/\b(men'?s|women'?s|male|female|lady|ladies)\b/gi, "")
-      .replace(/\b(basketball|hoops|bball|football|baseball|softball|volleyball|vball|soccer|golf|gymnastics|wrestling|tennis|track|cross country)\b/gi, "")
+      .replace(/\b(basketball|hoops|bball|football|fb|baseball|softball|volleyball|vball|soccer|golf|gymnastics|wrestling|tennis|track|cross country)\b/gi, "")
       .replace(/\bou\b/gi, "oklahoma")
       .replace(/\bsooners\b/gi, "oklahoma")
-      .replace(/\s+/g, " ")
-      .trim();
+      .replace(/[?!.,]/g, "")  // Remove punctuation
+      .replace(/\s+/g, " ")    // Collapse multiple spaces
+      .trim();                 // Remove leading/trailing spaces
+    
+    // If team name is empty or just punctuation, default to "oklahoma"
+    if (!teamName || teamName.length === 0) {
+      teamName = "oklahoma";
+    }
   }
 
   const payloadVariations = [];
