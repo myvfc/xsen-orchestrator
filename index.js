@@ -309,26 +309,102 @@ async function callMcp(baseUrl, userText) {
     console.log(`⚠️ No tools found, using default: ${toolName}`);
   }
 
-  // Extract team name from query for get_score tool
+  // Extract team name and detect sport
   let teamName = userText;
+  let sport = null;
+  
   if (toolName === "get_score") {
+    // Detect gender-specific queries
+    const isMens = /\bmen'?s\b|\bmale\b/i.test(userText);
+    const isWomens = /\bwomen'?s\b|\bfemale\b|\blady\b|\bladies\b/i.test(userText);
+    
     // Extract team name - look for common patterns
     teamName = userText
       .toLowerCase()
       .replace(/\b(score|game|final|result|what's|whats|get|show|tell me)\b/gi, "")
+      .replace(/\b(men'?s|women'?s|male|female|lady|ladies)\b/gi, "")
       .replace(/\bou\b/gi, "oklahoma")
       .replace(/\bsooners\b/gi, "oklahoma")
       .trim();
+    
+    // Detect sport from query
+    if (/basketball|hoops|bball/i.test(userText)) {
+      sport = "basketball";
+      // ESPN typically uses "mens-basketball" and "womens-basketball"
+      if (isMens) sport = "mens-basketball";
+      if (isWomens) sport = "womens-basketball";
+    } else if (/baseball/i.test(userText)) {
+      sport = "baseball";
+    } else if (/softball/i.test(userText)) {
+      sport = "softball";
+    } else if (/volleyball|vball/i.test(userText)) {
+      sport = "volleyball";
+      if (isMens) sport = "mens-volleyball";
+      if (isWomens) sport = "womens-volleyball";
+    } else if (/football|fb/i.test(userText)) {
+      sport = "football";
+    } else if (/soccer/i.test(userText)) {
+      sport = "soccer";
+      if (isMens) sport = "mens-soccer";
+      if (isWomens) sport = "womens-soccer";
+    } else if (/golf/i.test(userText)) {
+      sport = "golf";
+      if (isMens) sport = "mens-golf";
+      if (isWomens) sport = "womens-golf";
+    } else if (/gymnastics/i.test(userText)) {
+      sport = "gymnastics";
+      if (isMens) sport = "mens-gymnastics";
+      if (isWomens) sport = "womens-gymnastics";
+    } else if (/wrestling/i.test(userText)) {
+      sport = "wrestling";
+    } else if (/tennis/i.test(userText)) {
+      sport = "tennis";
+      if (isMens) sport = "mens-tennis";
+      if (isWomens) sport = "womens-tennis";
+    } else if (/track|cross country/i.test(userText)) {
+      sport = "track";
+      if (isMens) sport = "mens-track";
+      if (isWomens) sport = "womens-track";
+    }
+    // If no sport specified, try multiple sports
   }
 
-  const payloadVariations = [
+  const payloadVariations = [];
+  
+  // For get_score, try multiple sports if not specified
+  if (toolName === "get_score") {
+    if (sport) {
+      // Specific sport requested
+      payloadVariations.push({ name: toolName, arguments: { team: teamName, sport: sport } });
+    } else {
+      // Try all major OU sports (ordered by popularity/season activity)
+      // Include both men's and women's variants for sports that have both
+      const sports = [
+        "mens-basketball", "womens-basketball",
+        "football",
+        "baseball", "softball",
+        "mens-soccer", "womens-soccer",
+        "womens-volleyball",
+        "mens-golf", "womens-golf",
+        "womens-gymnastics",
+        "wrestling",
+        "mens-tennis", "womens-tennis"
+      ];
+      sports.forEach(s => {
+        payloadVariations.push({ name: toolName, arguments: { team: teamName, sport: s } });
+      });
+    }
+  }
+  
+  // Fallback variations for other tools
+  payloadVariations.push(
     { name: toolName, arguments: { team: teamName } },
     { name: toolName, arguments: { query: userText } },
     { name: toolName, arguments: { text: userText } },
     { name: toolName, arguments: { message: userText } },
     { name: toolName, arguments: { q: userText } },
     { name: toolName, arguments: { input: userText } }
-  ];
+  );
 
   for (let i = 0; i < payloadVariations.length; i++) {
     const payload = payloadVariations[i];
