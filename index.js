@@ -106,14 +106,32 @@ app.post("/chat", (req, res) => {
       const isCorrect = idx === session.correct;
       session.active = false;
 
-      return res.json({
-        response: isCorrect
-          ? `✅ **Correct!**\n\n${session.explain}\n\nType **trivia** for another.`
-          : `❌ **Not quite.**\n\nCorrect answer: **${
-              ["A", "B", "C", "D"][session.correct]
-            }**\n\n${session.explain}\n\nType **trivia** to try again.`
-      });
-    }
+     return res.json({
+  response: isCorrect
+    ? `✅ **Correct!** 🎉
+
+${session.explain}
+
+Want to:
+• watch a highlight
+• try another trivia question
+• learn why this mattered?
+
+Type **trivia** to keep going or **video** to watch.`
+    : `❌ **Not quite — good guess!**
+
+Correct answer: **${["A", "B", "C", "D"][session.correct]}**
+
+${session.explain}
+
+Want to:
+• see this moment
+• try another question
+• learn the story behind it?
+
+Type **trivia** to try again or **video** to watch.`
+});
+
 
     /* ------------------ TRIVIA REQUEST ------------------ */
     if (text.includes("trivia")) {
