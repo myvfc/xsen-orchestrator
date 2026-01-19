@@ -148,14 +148,33 @@ function isVideoRequest(text = "") {
 }
 
 function refineVideoQuery(text = "") {
-  return text
+  // Keep sport keywords intact
+  const sportKeywords = /\b(basketball|football|baseball|softball|soccer|volleyball|golf|gymnastics|wrestling|tennis|track|hoops|bball)\b/gi;
+  
+  // Extract sport mentions first
+  const sports = [];
+  let match;
+  const sportRegex = new RegExp(sportKeywords.source, 'gi');
+  while ((match = sportRegex.exec(text)) !== null) {
+    sports.push(match[0].toLowerCase());
+  }
+  
+  let refined = text
     .toLowerCase()
-    .replace(/\b(show me|watch|give me|find|please|can you|i want to see|pull up)\b/gi, "")
-    .replace(/\bou\b|\bsooners\b/gi, "oklahoma")
+    .replace(/\b(show me|watch|give me|find|please|can you|i want to see|pull up|video|videos|highlight|highlights|clip|clips)\b/gi, "")
+    .replace(/\bou\b/gi, "oklahoma")
+    .replace(/\bsooners\b/gi, "oklahoma")
     .replace(/\bbama\b/gi, "alabama")
     .replace(/\bosu\b|\bcowboys\b|\bpokes\b/gi, "oklahoma state")
     .replace(/\s+/g, " ")
     .trim();
+  
+  // If sport was mentioned, make sure it's prominent in the query
+  if (sports.length > 0) {
+    refined = `${sports[0]} ${refined}`;
+  }
+  
+  return refined;
 }
 
 function isESPNStatsRequest(text = "") {
