@@ -22,6 +22,12 @@ const VIDEO_AGENT_URL = (process.env.VIDEO_AGENT_URL || "").replace(/\/+$/, "");
 const ESPN_MCP_URL = (process.env.ESPN_MCP_URL || "").replace(/\/+$/, "");
 const CFBD_MCP_URL = (process.env.CFBD_MCP_URL || "").replace(/\/+$/, "");
 
+console.log("🔧 Configuration:");
+console.log("  VIDEO_AGENT_URL:", VIDEO_AGENT_URL || "(not set)");
+console.log("  ESPN_MCP_URL:", ESPN_MCP_URL || "(not set)");
+console.log("  CFBD_MCP_URL:", CFBD_MCP_URL || "(not set)");
+console.log("  MCP_API_KEY:", process.env.MCP_API_KEY ? "✅ Set" : "❌ Not set");
+
 /* ------------------------------------------------------------------ */
 /*                            LOAD TRIVIA                              */
 /* ------------------------------------------------------------------ */
@@ -285,16 +291,38 @@ async function callMcp(baseUrl, userText) {
   let toolName = "query";
   if (tools.length > 0) {
     const toolNames = tools.map(t => t.name);
-    toolName = toolNames.find(name => 
-      /query|search|get|fetch|ask/i.test(name)
-    ) || toolNames[0];
+    
+    // For score queries, prefer get_score tool
+    if (/score|game|final|result/i.test(userText)) {
+      toolName = toolNames.find(name => name === "get_score") || toolName;
+    }
+    
+    // Otherwise look for general query tools
+    if (toolName === "query") {
+      toolName = toolNames.find(name => 
+        /query|search|get|fetch|ask/i.test(name)
+      ) || toolNames[0];
+    }
     
     console.log(`✅ Using MCP tool: ${toolName} (available: ${toolNames.join(", ")})`);
   } else {
     console.log(`⚠️ No tools found, using default: ${toolName}`);
   }
 
+  // Extract team name from query for get_score tool
+  let teamName = userText;
+  if (toolName === "get_score") {
+    // Extract team name - look for common patterns
+    teamName = userText
+      .toLowerCase()
+      .replace(/\b(score|game|final|result|what's|whats|get|show|tell me)\b/gi, "")
+      .replace(/\bou\b/gi, "oklahoma")
+      .replace(/\bsooners\b/gi, "oklahoma")
+      .trim();
+  }
+
   const payloadVariations = [
+    { name: toolName, arguments: { team: teamName } },
     { name: toolName, arguments: { query: userText } },
     { name: toolName, arguments: { text: userText } },
     { name: toolName, arguments: { message: userText } },
@@ -315,7 +343,7 @@ async function callMcp(baseUrl, userText) {
       console.log(`📝 Response text:`, resp.text);
     }
     
-    if (resp.ok) {
+    if (resp.ok && !resp.json?.error) {
       const out = extractMcpText(resp.json) || resp.text || "";
       if (out.trim()) {
         console.log(`✅ Extracted text:`, out.substring(0, 200));
