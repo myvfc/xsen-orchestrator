@@ -246,12 +246,29 @@ function extractMcpText(data) {
 }
 
 async function getMcpTools(baseUrl) {
-  if (!baseUrl) return [];
-  
-  const resp = await fetchJson(baseUrl, {}, 5000, "tools/list");
-  if (resp.ok && resp.json?.result?.tools) {
-    return resp.json.result.tools;
+  if (!baseUrl) {
+    console.log("❌ getMcpTools: No baseUrl provided");
+    return [];
   }
+  
+  console.log(`🔍 Fetching tools from: ${baseUrl}`);
+  const resp = await fetchJson(baseUrl, {}, 5000, "tools/list");
+  
+  console.log(`📥 tools/list response - ok: ${resp.ok}, status: ${resp.status}`);
+  
+  if (resp.json) {
+    console.log(`📦 tools/list JSON:`, JSON.stringify(resp.json, null, 2));
+  } else {
+    console.log(`📝 tools/list text:`, resp.text?.substring(0, 200));
+  }
+  
+  if (resp.ok && resp.json?.result?.tools) {
+    const tools = resp.json.result.tools;
+    console.log(`✅ Found ${tools.length} tools:`, tools.map(t => t.name).join(", "));
+    return tools;
+  }
+  
+  console.log(`⚠️ No tools found in response`);
   return [];
 }
 
@@ -267,7 +284,9 @@ async function callMcp(baseUrl, userText) {
       /query|search|get|fetch|ask/i.test(name)
     ) || toolNames[0];
     
-    console.log(`Using MCP tool: ${toolName} (available: ${toolNames.join(", ")})`);
+    console.log(`✅ Using MCP tool: ${toolName} (available: ${toolNames.join(", ")})`);
+  } else {
+    console.log(`⚠️ No tools found, using default: ${toolName}`);
   }
 
   const payloadVariations = [
@@ -278,19 +297,37 @@ async function callMcp(baseUrl, userText) {
     { name: toolName, arguments: { input: userText } }
   ];
 
-  for (const payload of payloadVariations) {
+  for (let i = 0; i < payloadVariations.length; i++) {
+    const payload = payloadVariations[i];
+    console.log(`🔄 Trying payload variation ${i + 1}:`, JSON.stringify(payload));
+    
     const resp = await fetchJson(baseUrl, payload, 7000, "tools/call");
+    
+    console.log(`📥 Response ok: ${resp.ok}, status: ${resp.status}`);
+    if (resp.json) {
+      console.log(`📦 Response JSON:`, JSON.stringify(resp.json, null, 2));
+    } else {
+      console.log(`📝 Response text:`, resp.text);
+    }
+    
     if (resp.ok) {
       const out = extractMcpText(resp.json) || resp.text || "";
-      if (out.trim()) return { ok: true, text: out.trim() };
+      if (out.trim()) {
+        console.log(`✅ Extracted text:`, out.substring(0, 200));
+        return { ok: true, text: out.trim() };
+      }
       
       if (resp.json) {
         const jsonStr = JSON.stringify(resp.json, null, 2);
-        if (jsonStr.length > 20) return { ok: true, text: jsonStr };
+        if (jsonStr.length > 20) {
+          console.log(`✅ Returning JSON string`);
+          return { ok: true, text: jsonStr };
+        }
       }
     }
   }
 
+  console.log(`❌ All payload variations failed`);
   return { ok: false, text: "No valid response from MCP" };
 }
 
@@ -423,7 +460,13 @@ app.post("/chat", async (req, res) => {
         return res.json({ response: "📊 ESPN stats are not enabled yet (ESPN_MCP_URL not set)." });
       }
 
+      console.log(`\n🏈 ESPN Stats Request: "${rawText}"`);
+      console.log(`🔗 ESPN_MCP_URL: ${ESPN_MCP_URL}`);
+      
       const out = await callMcp(ESPN_MCP_URL, rawText);
+      
+      console.log(`📊 ESPN Result - ok: ${out.ok}, text length: ${out.text?.length || 0}`);
+      
       if (out.ok) return res.json({ response: out.text });
 
       console.error("❌ ESPN MCP failed:", out.text);
