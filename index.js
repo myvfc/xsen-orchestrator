@@ -173,6 +173,11 @@ async function fetchJson(url, payload, timeoutMs = 7000, method = "tools/call") 
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    // Ensure URL ends with /mcp for MCP servers
+    if (!url.endsWith('/mcp')) {
+      url = url.replace(/\/$/, '') + '/mcp';
+    }
+
     const headers = { "Content-Type": "application/json" };
     
     if (process.env.MCP_API_KEY) {
