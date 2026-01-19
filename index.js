@@ -110,10 +110,7 @@ app.post("/chat", (req, res) => {
 
 ${session.explain}
 
-Want to:
-• watch a highlight
-• try another trivia question
-• learn why this mattered?
+
 
 Type **trivia** to keep going or **video** to watch.`
           : `❌ **Not quite — good guess!**
