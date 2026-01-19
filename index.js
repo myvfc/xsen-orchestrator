@@ -63,7 +63,6 @@ function getText(body) {
 }
 
 function shuffle(arr) {
-  // Fisher-Yates (better than sort(() => Math.random() - 0.5))
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -80,22 +79,14 @@ function normalizeAnswer(s) {
   return sanitize(s).replace(/\s+/g, " ").toLowerCase();
 }
 
-/**
- * Build better MCQ options:
- * - prefer plausible answers (length similarity)
- * - avoid repeating the same 3 junk answers over and over
- * - guarantee 4 options when possible
- */
 function buildMCQ(q) {
   const correct = sanitize(q?.answer);
   const correctNorm = normalizeAnswer(correct);
 
-  // Filter to answers that look like real answers
   const allOtherAnswers = TRIVIA
     .map(t => sanitize(t?.answer))
     .filter(a => a && normalizeAnswer(a) !== correctNorm);
 
-  // Plausibility filter
   const plausible = allOtherAnswers.filter(a => {
     const lenOK =
       a.length >= 3 &&
@@ -104,7 +95,6 @@ function buildMCQ(q) {
     return lenOK && notSame;
   });
 
-  // Randomize pools
   const pool1 = shuffle(plausible);
   const pool2 = shuffle(allOtherAnswers);
 
@@ -122,7 +112,6 @@ function buildMCQ(q) {
     }
   }
 
-  // Prefer plausible wrong answers first, then fill from any other answers
   tryAddFrom(pool1);
   if (wrong.length < 3) tryAddFrom(pool2);
 
@@ -164,14 +153,12 @@ function refineVideoQuery(text = "") {
 }
 
 function isESPNStatsRequest(text = "") {
-  // ESPN: live score/record/stats/today/game info
   return /\b(score|scores|record|standings|stats|stat line|yards|tds|touchdowns|who won|final|rankings|game|today|this week|schedule)\b/i.test(
     text
   );
 }
 
 function isCFBDHistoryRequest(text = "") {
-  // CFBD: historical records/seasons/championships/all-time/bowls/series
   return /\b(all[- ]time|history|historical|record in|season|since|bowl|championship|national title|conference title|series|head to head|vs\.?|coaches|heisman)\b/i.test(
     text
   );
@@ -181,22 +168,20 @@ function isCFBDHistoryRequest(text = "") {
 /*                         SAFE FETCH HELPERS                          */
 /* ------------------------------------------------------------------ */
 
-async function fetchJson(url, payload, timeoutMs = 7000) {
+async function fetchJson(url, payload, timeoutMs = 7000, method = "tools/call") {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const headers = { "Content-Type": "application/json" };
     
-    // Add Authorization header if MCP_API_KEY is available
     if (process.env.MCP_API_KEY) {
       headers["Authorization"] = `Bearer ${process.env.MCP_API_KEY}`;
     }
 
-    // Wrap payload in JSON-RPC 2.0 format
     const jsonRpcPayload = {
       jsonrpc: "2.0",
-      method: "tools/call",
+      method: method,
       params: payload,
       id: Date.now()
     };
@@ -235,11 +220,9 @@ function extractMcpText(data) {
   if (!data) return "";
   if (typeof data === "string") return data;
 
-  // Handle JSON-RPC 2.0 response format
   if (data.result) {
     const result = data.result;
     
-    // Check for content array (common MCP response format)
     if (Array.isArray(result.content)) {
       return result.content
         .map(item => item.text || item.data || "")
@@ -247,12 +230,10 @@ function extractMcpText(data) {
         .join("\n");
     }
     
-    // Check for direct text in result
     if (result.text) return result.text;
     if (typeof result === "string") return result;
   }
 
-  // Fallback to common patterns
   return (
     data.response ||
     data.reply ||
@@ -264,37 +245,48 @@ function extractMcpText(data) {
   ).toString();
 }
 
-/**
- * Call MCP server robustly:
- * - tries common endpoints
- * - sends multiple field names many servers expect
- */
-async function callMcp(baseUrl, userText, toolName = "query") {
+async function getMcpTools(baseUrl) {
+  if (!baseUrl) return [];
+  
+  const resp = await fetchJson(baseUrl, {}, 5000, "tools/list");
+  if (resp.ok && resp.json?.result?.tools) {
+    return resp.json.result.tools;
+  }
+  return [];
+}
+
+async function callMcp(baseUrl, userText) {
   if (!baseUrl) return { ok: false, text: "MCP URL not set" };
 
-  const paths = ["/query", "/chat", "/mcp", "/invoke", ""]; // most likely first
+  const tools = await getMcpTools(baseUrl);
   
-  // Try different payload structures with tool name
-  const payloads = [
+  let toolName = "query";
+  if (tools.length > 0) {
+    const toolNames = tools.map(t => t.name);
+    toolName = toolNames.find(name => 
+      /query|search|get|fetch|ask/i.test(name)
+    ) || toolNames[0];
+    
+    console.log(`Using MCP tool: ${toolName} (available: ${toolNames.join(", ")})`);
+  }
+
+  const payloadVariations = [
     { name: toolName, arguments: { query: userText } },
     { name: toolName, arguments: { text: userText } },
     { name: toolName, arguments: { message: userText } },
-    { tool: toolName, query: userText },
-    { tool: toolName, text: userText },
-    { query: userText },
-    { text: userText },
-    { message: userText }
+    { name: toolName, arguments: { q: userText } },
+    { name: toolName, arguments: { input: userText } }
   ];
 
-  for (const p of paths) {
-    const url = (baseUrl + p).replace(/\/+$/, "") + (p === "" ? "" : "");
-    for (const payload of payloads) {
-      const resp = await fetchJson(url, payload);
-      if (resp.ok) {
-        const out = extractMcpText(resp.json) || resp.text || "";
-        if (out.trim()) return { ok: true, text: out.trim(), urlTried: url };
-        // If JSON but no obvious fields, stringify safely
-        if (resp.json) return { ok: true, text: JSON.stringify(resp.json, null, 2), urlTried: url };
+  for (const payload of payloadVariations) {
+    const resp = await fetchJson(baseUrl, payload, 7000, "tools/call");
+    if (resp.ok) {
+      const out = extractMcpText(resp.json) || resp.text || "";
+      if (out.trim()) return { ok: true, text: out.trim() };
+      
+      if (resp.json) {
+        const jsonStr = JSON.stringify(resp.json, null, 2);
+        if (jsonStr.length > 20) return { ok: true, text: jsonStr };
       }
     }
   }
@@ -337,7 +329,6 @@ app.post("/chat", async (req, res) => {
     if (!sessions.has(sessionId)) sessions.set(sessionId, {});
     const session = sessions.get(sessionId);
 
-    /* ------------------ ANSWER MODE (TRIVIA) ------------------ */
     if (session.active && isAnswerChoice(text)) {
       const idx = { a: 0, b: 1, c: 2, d: 3 }[text];
 
@@ -351,7 +342,6 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    /* ------------------ TRIVIA REQUEST ------------------ */
     if (isTriviaRequest(rawText)) {
       if (!TRIVIA.length) {
         return res.json({ response: "Trivia is warming up… (trivia.json not loaded)" });
@@ -360,7 +350,6 @@ app.post("/chat", async (req, res) => {
       const q = TRIVIA[Math.floor(Math.random() * TRIVIA.length)];
       const mcq = buildMCQ(q);
 
-      // If buildMCQ failed to form 4 options for some reason
       if (!mcq.question || !mcq.options?.length || mcq.correctIndex < 0) {
         return res.json({ response: "Trivia hiccup — try **trivia** again!" });
       }
@@ -378,7 +367,6 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    /* ------------------ VIDEO (VOD) ------------------ */
     if (isVideoRequest(rawText)) {
       if (!VIDEO_AGENT_URL) {
         return res.json({
@@ -430,33 +418,30 @@ app.post("/chat", async (req, res) => {
       }
     }
 
-    /* ------------------ ESPN MCP (STATS) ------------------ */
     if (isESPNStatsRequest(rawText)) {
       if (!ESPN_MCP_URL) {
         return res.json({ response: "📊 ESPN stats are not enabled yet (ESPN_MCP_URL not set)." });
       }
 
-      const out = await callMcp(ESPN_MCP_URL, rawText, "espn_query");
+      const out = await callMcp(ESPN_MCP_URL, rawText);
       if (out.ok) return res.json({ response: out.text });
 
       console.error("❌ ESPN MCP failed:", out.text);
       return res.json({ response: "Sorry, Sooner — I couldn't reach ESPN stats right now." });
     }
 
-    /* ------------------ CFBD MCP (HISTORY/RECORDS) ------------------ */
     if (isCFBDHistoryRequest(rawText)) {
       if (!CFBD_MCP_URL) {
         return res.json({ response: "📚 CFBD history is not enabled yet (CFBD_MCP_URL not set)." });
       }
 
-      const out = await callMcp(CFBD_MCP_URL, rawText, "cfbd_query");
+      const out = await callMcp(CFBD_MCP_URL, rawText);
       if (out.ok) return res.json({ response: out.text });
 
       console.error("❌ CFBD MCP failed:", out.text);
       return res.json({ response: "Sorry, Sooner — I couldn't reach CFBD history right now." });
     }
 
-    /* ------------------ DEFAULT ------------------ */
     return res.json({
       response: "Boomer Sooner! Ask for **trivia**, **video**, **score/stats**, or **history/records**."
     });
