@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
+import fetch from "node-fetch";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,6 +13,8 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 8080;
+const VIDEO_AGENT_URL =
+  (process.env.VIDEO_AGENT_URL || "").replace(/\/+$/, "");
 
 /* ------------------------------------------------------------------ */
 /*                            LOAD TRIVIA                              */
@@ -54,6 +57,21 @@ function shuffle(array) {
   return [...array].sort(() => Math.random() - 0.5);
 }
 
+function refineVideoQuery(text = "") {
+  return text
+    .toLowerCase()
+    .replace(/\b(show me|watch|give me|find|please|can you|i want to see)\b/gi, "")
+    .replace(/\bou\b|\bsooners\b/gi, "oklahoma")
+    .replace(/\bbama\b/gi, "alabama")
+    .replace(/\bosu\b|\bcowboys\b|\bpokes\b/gi, "oklahoma state")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isVideoRequest(text) {
+  return /(video|highlight|highlights|watch|clip|replay)/i.test(text);
+}
+
 function buildMCQ(q) {
   const pool = TRIVIA.filter(
     t =>
@@ -86,7 +104,7 @@ function buildMCQ(q) {
 /*                           CHAT ROUTE                                */
 /* ------------------------------------------------------------------ */
 
-app.post("/chat", (req, res) => {
+app.post("/chat", async (req, res) => {
   try {
     const sessionId = req.body?.sessionId || "default";
     const text = getText(req.body).toLowerCase();
@@ -101,7 +119,6 @@ app.post("/chat", (req, res) => {
     if (session.active && ["a", "b", "c", "d"].includes(text)) {
       const idx = { a: 0, b: 1, c: 2, d: 3 }[text];
       const isCorrect = idx === session.correct;
-
       session.active = false;
 
       return res.json({
@@ -110,17 +127,24 @@ app.post("/chat", (req, res) => {
 
 ${session.explain}
 
+Want to:
+• watch a highlight
+• try another trivia question
+• learn why this mattered?
 
-
-Type **trivia** to keep going or **video** to watch.`
+Type **trivia** or **video**`
           : `❌ **Not quite — good guess!**
 
 Correct answer: **${["A", "B", "C", "D"][session.correct]}**
 
 ${session.explain}
 
+Want to:
+• see this moment
+• try another question
+• learn the story behind it?
 
-Type **trivia** to try again or **video** to watch.`
+Type **trivia** or **video**`
       });
     }
 
@@ -143,9 +167,36 @@ Type **trivia** to try again or **video** to watch.`
       });
     }
 
+    /* ------------------ VIDEO REQUEST ------------------ */
+    if (isVideoRequest(text) && VIDEO_AGENT_URL) {
+      const refined = refineVideoQuery(text);
+      const fetchUrl = `${VIDEO_AGENT_URL}?query=${encodeURIComponent(
+        refined
+      )}&limit=3&ts=${Date.now()}`;
+
+      const resp = await fetch(fetchUrl);
+      const data = await resp.json();
+      const results = Array.isArray(data?.results) ? data.results : [];
+
+      if (!results.length) {
+        return res.json({
+          response:
+            "Boomer Sooner! I couldn’t find a highlight.\n\nTry:\n• Baker Mayfield highlights\n• OU vs Alabama\n• Oklahoma playoff highlights"
+        });
+      }
+
+      let reply = "🎬 **Sooner Highlights**\n\n";
+      results.forEach((v, i) => {
+        reply += `${i + 1}. ${v.title}\n${v.url}\n\n`;
+      });
+
+      return res.json({ response: reply.trim() });
+    }
+
     /* ------------------ DEFAULT ------------------ */
     return res.json({
-      response: "Boomer Sooner! Ask me for **trivia**, highlights, or history."
+      response:
+        "Boomer Sooner! Ask me for **trivia**, **video highlights**, or history."
     });
 
   } catch (err) {
