@@ -193,10 +193,18 @@ async function fetchJson(url, payload, timeoutMs = 7000) {
       headers["Authorization"] = `Bearer ${process.env.MCP_API_KEY}`;
     }
 
+    // Wrap payload in JSON-RPC 2.0 format
+    const jsonRpcPayload = {
+      jsonrpc: "2.0",
+      method: "tools/call",
+      params: payload,
+      id: Date.now()
+    };
+
     const r = await fetch(url, {
       method: "POST",
       headers: headers,
-      body: JSON.stringify(payload),
+      body: JSON.stringify(jsonRpcPayload),
       signal: controller.signal
     });
 
@@ -227,13 +235,29 @@ function extractMcpText(data) {
   if (!data) return "";
   if (typeof data === "string") return data;
 
-  // common patterns
+  // Handle JSON-RPC 2.0 response format
+  if (data.result) {
+    const result = data.result;
+    
+    // Check for content array (common MCP response format)
+    if (Array.isArray(result.content)) {
+      return result.content
+        .map(item => item.text || item.data || "")
+        .filter(Boolean)
+        .join("\n");
+    }
+    
+    // Check for direct text in result
+    if (result.text) return result.text;
+    if (typeof result === "string") return result;
+  }
+
+  // Fallback to common patterns
   return (
     data.response ||
     data.reply ||
     data.output_text ||
     data.output ||
-    data.result ||
     data.message ||
     (data.data && (data.data.response || data.data.reply || data.data.output)) ||
     ""
@@ -446,4 +470,3 @@ app.post("/chat", async (req, res) => {
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
-
