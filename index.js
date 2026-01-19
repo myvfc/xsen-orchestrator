@@ -269,15 +269,21 @@ function extractMcpText(data) {
  * - tries common endpoints
  * - sends multiple field names many servers expect
  */
-async function callMcp(baseUrl, userText) {
+async function callMcp(baseUrl, userText, toolName = "query") {
   if (!baseUrl) return { ok: false, text: "MCP URL not set" };
 
   const paths = ["/query", "/chat", "/mcp", "/invoke", ""]; // most likely first
+  
+  // Try different payload structures with tool name
   const payloads = [
+    { name: toolName, arguments: { query: userText } },
+    { name: toolName, arguments: { text: userText } },
+    { name: toolName, arguments: { message: userText } },
+    { tool: toolName, query: userText },
+    { tool: toolName, text: userText },
     { query: userText },
     { text: userText },
-    { message: userText },
-    { message: { text: userText } }
+    { message: userText }
   ];
 
   for (const p of paths) {
@@ -430,7 +436,7 @@ app.post("/chat", async (req, res) => {
         return res.json({ response: "📊 ESPN stats are not enabled yet (ESPN_MCP_URL not set)." });
       }
 
-      const out = await callMcp(ESPN_MCP_URL, rawText);
+      const out = await callMcp(ESPN_MCP_URL, rawText, "espn_query");
       if (out.ok) return res.json({ response: out.text });
 
       console.error("❌ ESPN MCP failed:", out.text);
@@ -443,7 +449,7 @@ app.post("/chat", async (req, res) => {
         return res.json({ response: "📚 CFBD history is not enabled yet (CFBD_MCP_URL not set)." });
       }
 
-      const out = await callMcp(CFBD_MCP_URL, rawText);
+      const out = await callMcp(CFBD_MCP_URL, rawText, "cfbd_query");
       if (out.ok) return res.json({ response: out.text });
 
       console.error("❌ CFBD MCP failed:", out.text);
