@@ -186,9 +186,16 @@ async function fetchJson(url, payload, timeoutMs = 7000) {
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const headers = { "Content-Type": "application/json" };
+    
+    // Add Authorization header if MCP_API_KEY is available
+    if (process.env.MCP_API_KEY) {
+      headers["Authorization"] = `Bearer ${process.env.MCP_API_KEY}`;
+    }
+
     const r = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headers,
       body: JSON.stringify(payload),
       signal: controller.signal
     });
@@ -356,7 +363,16 @@ app.post("/chat", async (req, res) => {
       const t = setTimeout(() => controller.abort(), 7000);
 
       try {
-        const r = await fetch(fetchUrl, { signal: controller.signal });
+        const headers = {};
+        if (process.env.VIDEO_AGENT_KEY) {
+          headers["Authorization"] = `Bearer ${process.env.VIDEO_AGENT_KEY}`;
+        }
+
+        const r = await fetch(fetchUrl, { 
+          headers: headers,
+          signal: controller.signal 
+        });
+
         if (!r.ok) {
           return res.json({
             response: "Sorry, Sooner — I had trouble reaching the video library."
@@ -369,7 +385,7 @@ app.post("/chat", async (req, res) => {
         if (!results.length) {
           return res.json({
             response:
-              "Boomer Sooner! I couldn’t find a match.\n\nTry:\n• Baker Mayfield highlights\n• OU vs Alabama\n• Oklahoma playoff highlights"
+              "Boomer Sooner! I couldn't find a match.\n\nTry:\n• Baker Mayfield highlights\n• OU vs Alabama\n• Oklahoma playoff highlights"
           });
         }
 
@@ -394,7 +410,7 @@ app.post("/chat", async (req, res) => {
       if (out.ok) return res.json({ response: out.text });
 
       console.error("❌ ESPN MCP failed:", out.text);
-      return res.json({ response: "Sorry, Sooner — I couldn’t reach ESPN stats right now." });
+      return res.json({ response: "Sorry, Sooner — I couldn't reach ESPN stats right now." });
     }
 
     /* ------------------ CFBD MCP (HISTORY/RECORDS) ------------------ */
@@ -407,7 +423,7 @@ app.post("/chat", async (req, res) => {
       if (out.ok) return res.json({ response: out.text });
 
       console.error("❌ CFBD MCP failed:", out.text);
-      return res.json({ response: "Sorry, Sooner — I couldn’t reach CFBD history right now." });
+      return res.json({ response: "Sorry, Sooner — I couldn't reach CFBD history right now." });
     }
 
     /* ------------------ DEFAULT ------------------ */
