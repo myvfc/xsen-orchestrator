@@ -119,10 +119,6 @@ Correct answer: **${["A", "B", "C", "D"][session.correct]}**
 
 ${session.explain}
 
-Want to:
-• see this moment
-• try another question
-• learn the story behind it?
 
 Type **trivia** to try again or **video** to watch.`
       });
