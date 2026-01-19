@@ -127,10 +127,7 @@ app.post("/chat", async (req, res) => {
 
 ${session.explain}
 
-Want to:
-• watch a highlight
-• try another trivia question
-• learn why this mattered?
+
 
 Type **trivia** or **video**`
           : `❌ **Not quite — good guess!**
@@ -138,11 +135,6 @@ Type **trivia** or **video**`
 Correct answer: **${["A", "B", "C", "D"][session.correct]}**
 
 ${session.explain}
-
-Want to:
-• see this moment
-• try another question
-• learn the story behind it?
 
 Type **trivia** or **video**`
       });
