@@ -374,24 +374,40 @@ async function callMcp(baseUrl, userText) {
   // For get_score, try multiple sports if not specified
   if (toolName === "get_score") {
     if (sport) {
-      // Specific sport requested
-      payloadVariations.push({ name: toolName, arguments: { team: teamName, sport: sport } });
+      // Specific sport requested - try multiple team name variations
+      const teamVariations = [teamName, "Oklahoma Sooners", "Oklahoma", "OU"];
+      teamVariations.forEach(team => {
+        payloadVariations.push({ name: toolName, arguments: { team: team, sport: sport } });
+        // Also try without the "mens-" or "womens-" prefix
+        if (sport.includes("-")) {
+          const baseSport = sport.split("-")[1];
+          payloadVariations.push({ name: toolName, arguments: { team: team, sport: baseSport } });
+        }
+      });
     } else {
-      // Try all major OU sports (ordered by popularity/season activity)
-      // Include both men's and women's variants for sports that have both
+      // Try all major OU sports with different team name formats
+      const teamVariations = ["Oklahoma", "Oklahoma Sooners", "OU"];
       const sports = [
-        "mens-basketball", "womens-basketball",
+        "mens-basketball", "basketball",
+        "womens-basketball", 
         "football",
         "baseball", "softball",
-        "mens-soccer", "womens-soccer",
-        "womens-volleyball",
-        "mens-golf", "womens-golf",
-        "womens-gymnastics",
+        "mens-soccer", "soccer",
+        "womens-soccer",
+        "womens-volleyball", "volleyball",
+        "mens-golf", "golf",
+        "womens-golf",
+        "womens-gymnastics", "gymnastics",
         "wrestling",
-        "mens-tennis", "womens-tennis"
+        "mens-tennis", "tennis",
+        "womens-tennis"
       ];
-      sports.forEach(s => {
-        payloadVariations.push({ name: toolName, arguments: { team: teamName, sport: s } });
+      
+      // Try Oklahoma first, then other variations
+      teamVariations.forEach(team => {
+        sports.forEach(s => {
+          payloadVariations.push({ name: toolName, arguments: { team: team, sport: s } });
+        });
       });
     }
   }
@@ -408,27 +424,29 @@ async function callMcp(baseUrl, userText) {
 
   for (let i = 0; i < payloadVariations.length; i++) {
     const payload = payloadVariations[i];
-    console.log(`🔄 Trying payload variation ${i + 1}:`, JSON.stringify(payload));
+    console.log(`🔄 Trying payload variation ${i + 1}/${payloadVariations.length}:`, JSON.stringify(payload));
     
     const resp = await fetchJson(baseUrl, payload, 7000, "tools/call");
     
     console.log(`📥 Response ok: ${resp.ok}, status: ${resp.status}`);
-    if (resp.json) {
-      console.log(`📦 Response JSON:`, JSON.stringify(resp.json, null, 2));
-    } else {
-      console.log(`📝 Response text:`, resp.text);
-    }
     
     if (resp.ok && !resp.json?.error) {
       const out = extractMcpText(resp.json) || resp.text || "";
+      
+      // Check if this is a "no game found" message
+      if (out.includes("No recent game found")) {
+        console.log(`⚠️ No game found, trying next variation...`);
+        continue; // Try next variation
+      }
+      
       if (out.trim()) {
-        console.log(`✅ Extracted text:`, out.substring(0, 200));
+        console.log(`✅ Found game! Response:`, out.substring(0, 200));
         return { ok: true, text: out.trim() };
       }
       
       if (resp.json) {
         const jsonStr = JSON.stringify(resp.json, null, 2);
-        if (jsonStr.length > 20) {
+        if (jsonStr.length > 20 && !jsonStr.includes("No recent game found")) {
           console.log(`✅ Returning JSON string`);
           return { ok: true, text: jsonStr };
         }
