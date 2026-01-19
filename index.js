@@ -337,19 +337,9 @@ async function callMcp(baseUrl, userText) {
     const isMens = /\bmen'?s\b|\bmale\b/i.test(userText);
     const isWomens = /\bwomen'?s\b|\bfemale\b|\blady\b|\bladies\b/i.test(userText);
     
-    // Extract team name - look for common patterns
-    teamName = userText
-      .toLowerCase()
-      .replace(/\b(score|game|final|result|what's|whats|get|show|tell me)\b/gi, "")
-      .replace(/\b(men'?s|women'?s|male|female|lady|ladies)\b/gi, "")
-      .replace(/\bou\b/gi, "oklahoma")
-      .replace(/\bsooners\b/gi, "oklahoma")
-      .trim();
-    
-    // Detect sport from query
+    // Detect sport from query FIRST
     if (/basketball|hoops|bball/i.test(userText)) {
       sport = "basketball";
-      // ESPN typically uses "mens-basketball" and "womens-basketball"
       if (isMens) sport = "mens-basketball";
       if (isWomens) sport = "womens-basketball";
     } else if (/baseball/i.test(userText)) {
@@ -385,7 +375,17 @@ async function callMcp(baseUrl, userText) {
       if (isMens) sport = "mens-track";
       if (isWomens) sport = "womens-track";
     }
-    // If no sport specified, try multiple sports
+    
+    // Extract team name - REMOVE sport keywords so we don't end up with "oklahoma basketball"
+    teamName = userText
+      .toLowerCase()
+      .replace(/\b(score|game|final|result|what's|whats|get|show|tell me)\b/gi, "")
+      .replace(/\b(men'?s|women'?s|male|female|lady|ladies)\b/gi, "")
+      .replace(/\b(basketball|hoops|bball|football|baseball|softball|volleyball|vball|soccer|golf|gymnastics|wrestling|tennis|track|cross country)\b/gi, "")
+      .replace(/\bou\b/gi, "oklahoma")
+      .replace(/\bsooners\b/gi, "oklahoma")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   const payloadVariations = [];
