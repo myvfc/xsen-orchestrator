@@ -55,7 +55,6 @@ function shuffle(array) {
 }
 
 function buildMCQ(q) {
-  // pool of plausible wrong answers
   const pool = TRIVIA.filter(
     t =>
       t.answer !== q.answer &&
@@ -63,7 +62,6 @@ function buildMCQ(q) {
       Math.abs(t.answer.length - q.answer.length) < 15
   );
 
-  // random sample without repetition
   const wrong = [];
   const used = new Set();
 
@@ -102,13 +100,13 @@ app.post("/chat", (req, res) => {
     /* ------------------ ANSWER MODE ------------------ */
     if (session.active && ["a", "b", "c", "d"].includes(text)) {
       const idx = { a: 0, b: 1, c: 2, d: 3 }[text];
-
       const isCorrect = idx === session.correct;
+
       session.active = false;
 
-    return res.json({
-  response: isCorrect
-    ? `✅ **Correct!** 🎉
+      return res.json({
+        response: isCorrect
+          ? `✅ **Correct!** 🎉
 
 ${session.explain}
 
@@ -118,7 +116,7 @@ Want to:
 • learn why this mattered?
 
 Type **trivia** to keep going or **video** to watch.`
-    : `❌ **Not quite — good guess!**
+          : `❌ **Not quite — good guess!**
 
 Correct answer: **${["A", "B", "C", "D"][session.correct]}**
 
@@ -130,9 +128,8 @@ Want to:
 • learn the story behind it?
 
 Type **trivia** to try again or **video** to watch.`
-});
-
-
+      });
+    }
 
     /* ------------------ TRIVIA REQUEST ------------------ */
     if (text.includes("trivia")) {
@@ -141,7 +138,7 @@ Type **trivia** to try again or **video** to watch.`
 
       session.active = true;
       session.correct = mcq.correct;
-      session.explain = mcq.explanation;
+      session.explain = q.explanation || q.answer;
 
       return res.json({
         response:
