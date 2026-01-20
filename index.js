@@ -21,7 +21,8 @@ setInterval(() => {
   console.log("💓 XSEN heartbeat", new Date().toISOString());
 }, 60_000);
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
+
 
 
 /* ------------------------------------------------------------------ */
