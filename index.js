@@ -14,7 +14,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT;
+
 
 /* ------------------------------------------------------------------ */
 /*                             ENV URLS                                */
@@ -147,7 +148,11 @@ app.post("/chat", async (req, res) => {
 /*                           START SERVER                              */
 /* ------------------------------------------------------------------ */
 
+console.log("🚪 Binding to PORT:", PORT);
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
+
+
 
