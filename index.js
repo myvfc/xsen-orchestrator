@@ -11,6 +11,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+app.get("/", (req, res) => res.send("XSEN OK"));
+
 app.use(cors());
 app.use(express.json());
 /* ------------------------------------------------------------------ */
