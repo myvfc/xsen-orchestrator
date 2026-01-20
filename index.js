@@ -13,6 +13,13 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(cors());
 app.use(express.json());
+/* ------------------------------------------------------------------ */
+/*                           HEARTBEAT                                 */
+/* ------------------------------------------------------------------ */
+
+setInterval(() => {
+  console.log("💓 XSEN heartbeat", new Date().toISOString());
+}, 60_000);
 
 const PORT = process.env.PORT;
 
