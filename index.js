@@ -1,4 +1,4 @@
-import express from "express";
+ import express from "express";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
@@ -41,7 +41,7 @@ try {
 
   if (!Array.isArray(TRIVIA)) TRIVIA = [];
 
-  console.log(`🧠 Loaded ${TRIVIA.length} trivia questions`);
+  console.log(🧠 Loaded ${TRIVIA.length} trivia questions);
 } catch (err) {
   console.error("❌ Failed to load trivia.json", err?.message || err);
 }
@@ -94,7 +94,7 @@ async function getMcpTools(baseUrl) {
     return [];
   }
 
-  console.log(`🔍 Fetching tools from: ${baseUrl}`);
+  console.log(🔍 Fetching tools from: ${baseUrl});
   const resp = await fetchJson(baseUrl, {}, 5000, "tools/list");
 
   if (resp.ok && resp.json?.result?.tools) {
@@ -157,8 +157,8 @@ app.post("/chat", async (req, res) => {
 
       return res.json({
         response: isCorrect
-          ? `✅ **Correct!** 🎉\n\n${session.explain}\n\nType **trivia** or **video**`
-          : `❌ **Not quite!**\n\nCorrect answer: **${["A", "B", "C", "D"][session.correctIndex]}**\n\n${session.explain}\n\nType **trivia** or **video**`
+          ? ✅ **Correct!** 🎉\n\n${session.explain}\n\nType **trivia** or **video**
+          : ❌ **Not quite!**\n\nCorrect answer: **${["A", "B", "C", "D"][session.correctIndex]}**\n\n${session.explain}\n\nType **trivia** or **video**
       });
     }
 
@@ -171,10 +171,10 @@ app.post("/chat", async (req, res) => {
       session.correctIndex = mcq.correctIndex;
       session.explain = mcq.explanation;
       const optionsText = mcq.options
-        .map((o, i) => `${["A", "B", "C", "D"][i]}. ${o}`)
+        .map((o, i) => ${["A", "B", "C", "D"][i]}. ${o})
         .join("\n");
       return res.json({
-        response: `🧠 **OU Trivia**\n\n❓ ${mcq.question}\n\n${optionsText}\n\nReply with **A, B, C, or D**`
+        response: 🧠 **OU Trivia**\n\n❓ ${mcq.question}\n\n${optionsText}\n\nReply with **A, B, C, or D**
       });
     }
 
@@ -202,13 +202,13 @@ app.post("/chat", async (req, res) => {
     if (isVideoRequest(rawText)) {
       /* unchanged video logic */
       const refinedQuery = refineVideoQuery(rawText);
-      const fetchUrl = `${VIDEO_AGENT_URL}?query=${encodeURIComponent(refinedQuery)}&limit=3`;
+      const fetchUrl = ${VIDEO_AGENT_URL}?query=${encodeURIComponent(refinedQuery)}&limit=3;
       const r = await fetch(fetchUrl);
       const data = await r.json();
       const results = data.results || [];
       let reply = "Boomer Sooner! Here are some highlights:\n\n";
       results.forEach((v, i) => {
-        reply += `🎬 ${i + 1}. ${v.title}\n${v.url}\n\n`;
+        reply += 🎬 ${i + 1}. ${v.title}\n${v.url}\n\n;
       });
       return res.json({ response: reply.trim() });
     }
@@ -229,6 +229,5 @@ app.post("/chat", async (req, res) => {
 /* ------------------------------------------------------------------ */
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
+  console.log(🚀 XSEN Orchestrator running on port ${PORT});
 });
-
