@@ -3,6 +3,7 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import fetch from "node-fetch";
 import OpenAI from "openai"; // 🔧 ADDED
 console.log("MCP KEY PRESENT:", !!process.env.MCP_API_KEY);
 
