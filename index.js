@@ -34,7 +34,12 @@ setInterval(() => {
   console.log("💓 XSEN heartbeat", new Date().toISOString());
 }, 60_000);
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
+
+console.log("🔍 Environment check:");
+console.log("  PORT:", PORT);
+console.log("  RAILWAY_ENVIRONMENT:", process.env.RAILWAY_ENVIRONMENT || "not set");
+console.log("  NODE_ENV:", process.env.NODE_ENV || "not set");
 
 /* ------------------------------------------------------------------ */
 /*                             ENV URLS                                */
@@ -181,13 +186,18 @@ function refineVideoQuery(text = "") {
 }
 
 function isESPNStatsRequest(text = "") {
-  return /\b(score|scores|record|standings|stats|stat line|yards|tds|touchdowns|who won|final|rankings|game|today|this week|schedule)\b/i.test(
+  return /\b(score|scores|record|standings|stats|stat line|yards|tds|touchdowns|who won|final|rankings|game|games|today|this week|last week|schedule|recent|latest)\b/i.test(
     text
   );
 }
 
 function isCFBDHistoryRequest(text = "") {
-  return /\b(all[- ]time|history|historical|record in|season|since|bowl|championship|national title|conference title|series|head to head|vs\.?|coaches|heisman)\b/i.test(
+  const lowerText = text.toLowerCase().trim();
+  
+  // If the ENTIRE query is just "history", treat it as a history request
+  if (lowerText === "history") return true;
+  
+  return /\b(all[- ]time|historical|record in|season|since|bowl|championship|national title|conference title|series|head to head|vs\.?|coaches|heisman|recruiting|talent|matchup)\b/i.test(
     text
   );
 }
@@ -319,6 +329,26 @@ async function callMcp(baseUrl, userText) {
       toolName = toolNames.find(name => name === "get_score") || toolName;
     }
     
+    // For CFBD history queries, use appropriate tool
+    if (baseUrl.includes("cfbd")) {
+      const lowerText = userText.toLowerCase();
+      
+      if (lowerText === "history" || /what happened|tell me about|recent history/i.test(userText)) {
+        // Generic history - use team records
+        toolName = toolNames.find(name => name === "get_team_records") || toolName;
+      } else if (/matchup|vs\.?|head to head|against/i.test(userText)) {
+        toolName = toolNames.find(name => name === "get_team_matchup") || toolName;
+      } else if (/recruiting|recruit/i.test(userText)) {
+        toolName = toolNames.find(name => name === "get_recruiting") || toolName;
+      } else if (/talent|composite/i.test(userText)) {
+        toolName = toolNames.find(name => name === "get_team_talent") || toolName;
+      } else if (/ranking|rank/i.test(userText)) {
+        toolName = toolNames.find(name => name === "get_team_rankings") || toolName;
+      } else {
+        toolName = toolNames.find(name => name === "get_team_records") || toolName;
+      }
+    }
+    
     // Otherwise look for general query tools
     if (toolName === "query") {
       toolName = toolNames.find(name => 
@@ -429,6 +459,58 @@ async function callMcp(baseUrl, userText) {
       teamVariations.forEach(team => {
         sports.forEach(s => {
           payloadVariations.push({ name: toolName, arguments: { team: team, sport: s } });
+        });
+      });
+    }
+  }
+  
+  // For CFBD history tools, use Oklahoma as default team
+  if (baseUrl.includes("cfbd")) {
+    const teamVariations = ["Oklahoma", "oklahoma", "Oklahoma Sooners", "OU"];
+    
+    if (toolName === "get_team_records") {
+      teamVariations.forEach(team => {
+        payloadVariations.push({ 
+          name: toolName, 
+          arguments: { team: team, startYear: 2020, endYear: 2024 } 
+        });
+        payloadVariations.push({ 
+          name: toolName, 
+          arguments: { team: team } 
+        });
+      });
+    } else if (toolName === "get_team_matchup") {
+      // Extract opponent from query
+      const opponent = userText
+        .toLowerCase()
+        .replace(/\b(oklahoma|sooners|ou)\b/gi, "")
+        .replace(/\b(vs\.?|against|versus|head to head)\b/gi, "")
+        .trim();
+      
+      if (opponent) {
+        teamVariations.forEach(team => {
+          payloadVariations.push({ 
+            name: toolName, 
+            arguments: { team1: team, team2: opponent, minYear: 2000 } 
+          });
+        });
+      }
+    } else if (toolName === "get_team_rankings") {
+      teamVariations.forEach(team => {
+        payloadVariations.push({ 
+          name: toolName, 
+          arguments: { team: team, year: 2024 } 
+        });
+        payloadVariations.push({ 
+          name: toolName, 
+          arguments: { team: team } 
+        });
+      });
+    } else if (toolName === "get_recruiting" || toolName === "get_team_talent") {
+      teamVariations.forEach(team => {
+        payloadVariations.push({ 
+          name: toolName, 
+          arguments: { team: team } 
         });
       });
     }
@@ -623,7 +705,7 @@ app.post("/chat", async (req, res) => {
     }
 
     return res.json({
-      response: "Boomer Sooner! Ask for **trivia**, **video**, **score/stats**, or **history/records**."
+      response: "Boomer Sooner! I can help you with:\n\n🎬 **Videos** - \"show me Baker Mayfield highlights\"\n📊 **Scores/Stats** - \"what's the OU score?\" or \"recent games\"\n📚 **History** - \"OU all-time record\" or \"history\"\n🧠 **Trivia** - \"trivia\" for a fun question\n\nWhat would you like to know?"
     });
 
   } catch (err) {
