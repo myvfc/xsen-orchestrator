@@ -3,6 +3,7 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import OpenAI from "openai";
 
 console.log("MCP KEY PRESENT:", !!process.env.MCP_API_KEY);
 
@@ -27,6 +28,346 @@ app.use(cors());
 app.use(express.json());
 
 /* ------------------------------------------------------------------ */
+/*                         TOOL FUNCTIONS FOR LLM                      */
+/* ------------------------------------------------------------------ */
+
+async function getTriviaQuestion() {
+  if (!TRIVIA.length) {
+    return { error: "Trivia not loaded" };
+  }
+  
+  const q = TRIVIA[Math.floor(Math.random() * TRIVIA.length)];
+  const mcq = buildMCQ(q);
+  
+  if (!mcq.question || !mcq.options?.length || mcq.correctIndex < 0) {
+    return { error: "Failed to generate trivia question" };
+  }
+  
+  return {
+    question: mcq.question,
+    options: mcq.options.map((o, i) => `${["A", "B", "C", "D"][i]}. ${o}`),
+    correctIndex: mcq.correctIndex,
+    explanation: mcq.explanation
+  };
+}
+
+async function searchVideos(query) {
+  if (!VIDEO_AGENT_URL) {
+    return { error: "Video service not configured" };
+  }
+  
+  const refinedQuery = refineVideoQuery(query);
+  const fetchUrl = `${VIDEO_AGENT_URL}?query=${encodeURIComponent(refinedQuery)}&limit=3&ts=${Date.now()}`;
+  
+  try {
+    const headers = {};
+    if (process.env.VIDEO_AGENT_KEY) {
+      headers["Authorization"] = `Bearer ${process.env.VIDEO_AGENT_KEY}`;
+    }
+    
+    const r = await fetch(fetchUrl, { headers, signal: AbortSignal.timeout(7000) });
+    
+    if (!r.ok) {
+      return { error: `Video service returned ${r.status}` };
+    }
+    
+    const data = await r.json();
+    const results = Array.isArray(data?.results) ? data.results : [];
+    
+    return { videos: results };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+async function getESPNStats(query) {
+  if (!ESPN_MCP_URL) {
+    return { error: "ESPN stats not configured" };
+  }
+  
+  console.log(`\n📊 ESPN Stats Request: "${query}"`);
+  console.log(`🔗 ESPN_MCP_URL: ${ESPN_MCP_URL}`);
+  
+  const lowerQuery = query.toLowerCase();
+  
+  let toolName = "get_score"; // default
+  let args = { team: "Oklahoma", sport: "football" };
+  
+  // Detect sport
+  let sport = "football";
+  if (/basketball|hoops|bball/i.test(query)) {
+    sport = /women|lady|ladies/i.test(query) ? "womens-basketball" : "mens-basketball";
+  } else if (/baseball/i.test(query)) {
+    sport = "baseball";
+  } else if (/softball/i.test(query)) {
+    sport = "softball";
+  } else if (/volleyball|vball/i.test(query)) {
+    sport = /women/i.test(query) ? "womens-volleyball" : "volleyball";
+  } else if (/soccer/i.test(query)) {
+    sport = /women/i.test(query) ? "womens-soccer" : "mens-soccer";
+  } else if (/gymnastics/i.test(query)) {
+    sport = "womens-gymnastics";
+  } else if (/golf/i.test(query)) {
+    sport = /women/i.test(query) ? "womens-golf" : "mens-golf";
+  } else if (/tennis/i.test(query)) {
+    sport = /women/i.test(query) ? "womens-tennis" : "mens-tennis";
+  } else if (/wrestling/i.test(query)) {
+    sport = "wrestling";
+  }
+  
+  // Determine which ESPN tool to use
+  if (/player stats|individual stats|who scored|leading scorer/i.test(query)) {
+    toolName = "get_game_player_stats";
+    // Need eventId - this is tricky, might need to get score first then get player stats
+    // For now, return error suggesting they ask for score first
+    return { error: "For player stats, please ask for the game score first, then I can get detailed player statistics." };
+  }
+  else if (/schedule|upcoming|next game|when does|when do/i.test(query)) {
+    toolName = "get_schedule";
+    args = { team: "Oklahoma", sport: sport };
+  }
+  else if (/ncaa rankings?|college rankings?|division rankings?/i.test(query)) {
+    toolName = "get_ncaa_rankings";
+    args = { sport: sport };
+  }
+  else if (/rankings?|poll|top 25|ap poll|coaches poll/i.test(query)) {
+    toolName = "get_rankings";
+    args = { sport: sport, poll: "ap" };
+    if (/coaches/i.test(query)) args.poll = "coaches";
+  }
+  else if (/ncaa scoreboard|college scoreboard|all college games/i.test(query)) {
+    toolName = "get_ncaa_scoreboard";
+    args = { sport: sport };
+  }
+  else if (/scoreboard|all games|today'?s games|games today/i.test(query) && !/oklahoma|ou|sooners/i.test(query)) {
+    toolName = "get_scoreboard";
+    args = { sport: sport };
+    // Add date if specified
+    const dateMatch = query.match(/\d{8}/);
+    if (dateMatch) args.date = dateMatch[0];
+  }
+  else {
+    // Default to get_score for OU-specific queries
+    toolName = "get_score";
+    args = { team: "Oklahoma", sport: sport };
+  }
+  
+  console.log(`🔧 Using ESPN tool: ${toolName}`, args);
+  
+  const payload = { name: toolName, arguments: args };
+  const result = await fetchJson(ESPN_MCP_URL, payload, 7000, "tools/call");
+  
+  console.log(`📊 ESPN Result - ok: ${result.ok}, status: ${result.status}`);
+  
+  if (result.ok && !result.json?.error) {
+    const responseText = extractMcpText(result.json) || result.text || "";
+    console.log(`✅ ESPN Response:`, responseText.substring(0, 200));
+    return { data: responseText };
+  } else {
+    const errorMsg = result.json?.error?.message || result.text || "ESPN request failed";
+    console.error(`❌ ESPN Error:`, errorMsg);
+    return { error: errorMsg };
+  }
+}
+
+async function getCFBDHistory(query) {
+  if (!CFBD_MCP_URL) {
+    return { error: "CFBD history not configured" };
+  }
+  
+  console.log(`\n📚 CFBD History Request: "${query}"`);
+  console.log(`🔗 CFBD_MCP_URL: ${CFBD_MCP_URL}`);
+  
+  const lowerQuery = query.toLowerCase();
+  
+  let toolName = "get_team_records"; // default
+  let args = { team: "Oklahoma" };
+  
+  // Detect matchup queries (vs, against, etc.)
+  if (/\bvs\.?\b|\bagainst\b|\bversus\b|head[- ]?to[- ]?head/i.test(query)) {
+    toolName = "get_team_matchup";
+    // Extract opponent
+    let opponent = query
+      .toLowerCase()
+      .replace(/\b(oklahoma|sooners|ou)\b/gi, "")
+      .replace(/\b(vs\.?|against|versus|all[- ]time|record|history|head[- ]?to[- ]?head)\b/gi, "")
+      .replace(/\b(football|basketball|game)\b/gi, "")
+      .trim();
+    
+    // Common team name mappings
+    if (/texas/i.test(opponent) && !/tech|state/i.test(opponent)) opponent = "Texas";
+    else if (/nebraska/i.test(opponent)) opponent = "Nebraska";
+    else if (/alabama|bama/i.test(opponent)) opponent = "Alabama";
+    else if (/oklahoma state|osu|cowboys|pokes/i.test(opponent)) opponent = "Oklahoma State";
+    else if (/kansas/i.test(opponent) && !/state/i.test(opponent)) opponent = "Kansas";
+    else if (!opponent) opponent = "Texas"; // default if we can't parse
+    
+    args = {
+      team1: "Oklahoma",
+      team2: opponent,
+      minYear: 1900
+    };
+  }
+  // Play-by-play for specific game
+  else if (/play[- ]?by[- ]?play|plays|scoring|drive/i.test(query)) {
+    toolName = "get_play_by_play";
+    // This needs gameId which we don't have - suggest they ask for recent game first
+    return { error: "For play-by-play, please ask for the game score first, then I can get detailed play information." };
+  }
+  // Player stats
+  else if (/player stats|individual stats|who led|leading|top player/i.test(query)) {
+    toolName = "get_player_stats";
+    const year = new Date().getFullYear();
+    args = { team: "Oklahoma", year: year };
+  }
+  // Game-by-game stats
+  else if (/game[- ]?by[- ]?game|each game|every game|game stats/i.test(query)) {
+    toolName = "get_game_stats";
+    const year = new Date().getFullYear();
+    args = { team: "Oklahoma", year: year };
+  }
+  // Team season stats
+  else if (/team stats|season stats|total yards|total touchdowns|offensive stats|defensive stats/i.test(query)) {
+    toolName = "get_team_stats";
+    const year = new Date().getFullYear();
+    args = { team: "Oklahoma", year: year };
+  }
+  // Conference standings
+  else if (/standings?|conference|big 12|sec/i.test(query)) {
+    toolName = "get_conference_standings";
+    const conference = /sec/i.test(query) ? "SEC" : "Big 12";
+    args = { conference: conference };
+  }
+  // Recruiting query
+  else if (/recruit/i.test(query)) {
+    toolName = "get_recruiting";
+    const year = new Date().getFullYear();
+    args = { team: "Oklahoma", year: year };
+  }
+  // Talent/composite ranking
+  else if (/talent|composite/i.test(query)) {
+    toolName = "get_team_talent";
+    const year = new Date().getFullYear();
+    args = { team: "Oklahoma", year: year };
+  }
+  // Rankings (AP, Coaches, CFP)
+  else if (/ranking|poll|ap|coaches|playoff ranking/i.test(query)) {
+    toolName = "get_team_rankings";
+    const year = new Date().getFullYear();
+    args = { team: "Oklahoma", year: year };
+  }
+  // Schedule
+  else if (/schedule|upcoming|next game|remaining games/i.test(query)) {
+    toolName = "get_schedule";
+    const year = new Date().getFullYear();
+    args = { team: "Oklahoma", year: year };
+  }
+  // Returning production
+  else if (/returning|production|who'?s back|veterans/i.test(query)) {
+    toolName = "get_returning_production";
+    const year = new Date().getFullYear();
+    args = { team: "Oklahoma", year: year };
+  }
+  // Venue/stadium info
+  else if (/stadium|venue|gaylord|memorial stadium|where do they play/i.test(query)) {
+    toolName = "get_venue_info";
+    args = { team: "Oklahoma" };
+  }
+  // Default to team records for general history
+  else {
+    toolName = "get_team_records";
+    args = { team: "Oklahoma", startYear: 2020, endYear: 2024 };
+  }
+  
+  console.log(`🔧 Using CFBD tool: ${toolName}`, args);
+  
+  const payload = { name: toolName, arguments: args };
+  const result = await fetchJson(CFBD_MCP_URL, payload, 7000, "tools/call");
+  
+  console.log(`📊 CFBD Result - ok: ${result.ok}, status: ${result.status}`);
+  
+  if (result.ok && !result.json?.error) {
+    const responseText = extractMcpText(result.json) || result.text || "";
+    console.log(`✅ CFBD Response:`, responseText.substring(0, 200));
+    return { data: responseText };
+  } else {
+    const errorMsg = result.json?.error?.message || result.text || "CFBD request failed";
+    console.error(`❌ CFBD Error:`, errorMsg);
+    return { error: errorMsg };
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*                      OPENAI FUNCTION TOOLS                         */
+/* ------------------------------------------------------------------ */
+
+const tools = [
+  {
+    type: "function",
+    function: {
+      name: "get_trivia_question",
+      description: "Get a random OU Sooners trivia question with multiple choice answers. ONLY use when user explicitly asks for 'trivia', 'quiz', or 'test my knowledge'.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: []
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_videos",
+      description: "Search for OU Sooners video highlights and game footage. ONLY use when user specifically asks for 'video', 'highlight', 'watch', 'clip', or 'show me' something visual.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "The search query for videos (e.g., 'Baker Mayfield highlights', 'OU vs Alabama', 'softball championship')"
+          }
+        },
+        required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_espn_stats",
+      description: "Get CURRENT/RECENT game scores, today's games, this week's schedule, and live stats from ESPN. Use for: current score, recent game, today's game, this week, latest game, schedule. DO NOT use for all-time records or historical matchups.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "The stats query focused on recent/current games (e.g., 'OU basketball score today', 'football schedule this week')"
+          }
+        },
+        required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_cfbd_history",
+      description: "Get HISTORICAL football data and ALL-TIME records. Use for: all-time record, head-to-head history, past seasons, historical matchups, bowl records, championship history, series records. Keywords: 'all-time', 'history', 'vs', 'against', 'series', 'bowl games', 'championships'.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "The history query (e.g., 'OU all-time record vs Texas', 'OU national championships', 'OU vs Nebraska series history')"
+          }
+        },
+        required: ["query"]
+      }
+    }
+  }
+];
+
+/* ------------------------------------------------------------------ */
 /*                           HEARTBEAT                                 */
 /* ------------------------------------------------------------------ */
 
@@ -49,11 +390,16 @@ const VIDEO_AGENT_URL = (process.env.VIDEO_AGENT_URL || "").replace(/\/+$/, "");
 const ESPN_MCP_URL = (process.env.ESPN_MCP_URL || "").replace(/\/+$/, "");
 const CFBD_MCP_URL = (process.env.CFBD_MCP_URL || "").replace(/\/+$/, "");
 
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
 console.log("🔧 Configuration:");
 console.log("  VIDEO_AGENT_URL:", VIDEO_AGENT_URL || "(not set)");
 console.log("  ESPN_MCP_URL:", ESPN_MCP_URL || "(not set)");
 console.log("  CFBD_MCP_URL:", CFBD_MCP_URL || "(not set)");
 console.log("  MCP_API_KEY:", process.env.MCP_API_KEY ? "✅ Set" : "❌ Not set");
+console.log("  OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "✅ Set" : "❌ Not set");
 
 /* ------------------------------------------------------------------ */
 /*                            LOAD TRIVIA                              */
@@ -580,6 +926,43 @@ async function callMcp(baseUrl, userText) {
 }
 
 /* ------------------------------------------------------------------ */
+/*                        TEXT-TO-SPEECH ENDPOINT                      */
+/* ------------------------------------------------------------------ */
+
+app.post("/tts", async (req, res) => {
+  try {
+    const text = req.body?.text;
+    const voice = req.body?.voice || "onyx"; // Default to Onyx (sports announcer voice)
+
+    if (!text) {
+      return res.status(400).json({ error: "No text provided" });
+    }
+
+    console.log(`🔊 TTS Request: "${text.substring(0, 50)}..." with voice: ${voice}`);
+
+    const mp3 = await openai.audio.speech.create({
+      model: "tts-1",
+      voice: voice, // alloy, echo, fable, onyx, nova, shimmer
+      input: text,
+    });
+
+    const buffer = Buffer.from(await mp3.arrayBuffer());
+
+    res.set({
+      'Content-Type': 'audio/mpeg',
+      'Content-Length': buffer.length
+    });
+
+    res.send(buffer);
+    console.log(`✅ TTS audio generated successfully`);
+
+  } catch (err) {
+    console.error("❌ TTS error:", err);
+    res.status(500).json({ error: "TTS generation failed" });
+  }
+});
+
+/* ------------------------------------------------------------------ */
 /*                              HEALTH                                 */
 /* ------------------------------------------------------------------ */
 
@@ -593,158 +976,139 @@ app.post("/chat", async (req, res) => {
   try {
     const sessionId = req.body?.sessionId || req.body?.session_id || "default";
     const rawText = getText(req.body);
-    const text = rawText.toLowerCase();
 
     if (!rawText) {
       return res.json({ response: "Boomer Sooner! What can I help you with?" });
     }
 
-    if (!sessions.has(sessionId)) sessions.set(sessionId, {});
+    if (!sessions.has(sessionId)) sessions.set(sessionId, { chat: [] });
     const session = sessions.get(sessionId);
 
-    if (session.active && isAnswerChoice(text)) {
-      const idx = { a: 0, b: 1, c: 2, d: 3 }[text];
-
+    // Handle trivia answers (A, B, C, D)
+    if (session.active && isAnswerChoice(rawText.toLowerCase())) {
+      const idx = { a: 0, b: 1, c: 2, d: 3 }[rawText.toLowerCase()];
       const isCorrect = idx === session.correctIndex;
       session.active = false;
 
       return res.json({
         response: isCorrect
-          ? `✅ **Correct!** 🎉\n\n${session.explain}\n\nWant to:\n• watch a highlight\n• try another trivia question\n• learn why this mattered?\n\nType **trivia** to keep going or **video** to watch.`
-          : `❌ **Not quite — good guess!**\n\nCorrect answer: **${["A", "B", "C", "D"][session.correctIndex]}**\n\n${session.explain}\n\nWant to:\n• see this moment\n• try another question\n• learn the story behind it?\n\nType **trivia** to keep going or **video** to watch.`
+          ? `✅ **Correct!** 🎉\n\n${session.explain}\n\nTry **trivia**, **video**, **stats**, or **history** — and don't forget to tune in to Boomer Bot Radio! 🎙️📻`
+          : `❌ **Not quite!**\n\nCorrect answer: **${["A", "B", "C", "D"][session.correctIndex]}** - ${session.explain}\n\nTry **trivia**, **video**, **stats**, or **history** — and don't forget to tune in to Boomer Bot Radio! 🎙️📻`
       });
     }
 
-    if (isTriviaRequest(rawText)) {
-      if (!TRIVIA.length) {
-        return res.json({ response: "Trivia is warming up… (trivia.json not loaded)" });
-      }
+    // Add user message to conversation history
+    session.chat.push({ role: "user", content: rawText });
+    session.chat = session.chat.slice(-10); // Keep last 10 messages
 
-      const q = TRIVIA[Math.floor(Math.random() * TRIVIA.length)];
-      const mcq = buildMCQ(q);
+    // Call OpenAI with function calling
+    const messages = [
+      {
+        role: "system",
+        content: `You are Boomer Bot, the enthusiastic AI assistant for Oklahoma Sooners fans. You love OU sports and provide helpful, engaging responses.
 
-      if (!mcq.question || !mcq.options?.length || mcq.correctIndex < 0) {
-        return res.json({ response: "Trivia hiccup — try **trivia** again!" });
-      }
+IMPORTANT TOOL USAGE RULES:
+- get_trivia_question: ONLY when user explicitly says "trivia", "quiz", or "test me"
+- search_videos: ONLY when user asks for "video", "highlight", "watch", or "show me"
+- get_espn_stats: For CURRENT/RECENT games (today, this week, latest score)
+- get_cfbd_history: For ALL-TIME records, historical matchups, "vs", series records
 
-      session.active = true;
-      session.correctIndex = mcq.correctIndex;
-      session.explain = mcq.explanation;
+When tools return errors, acknowledge the issue and provide what information you can from your general knowledge about OU sports.
 
-      const optionsText = mcq.options
-        .map((o, i) => `${["A", "B", "C", "D"][i]}. ${o}`)
-        .join("\n");
+Common queries:
+- "what's the score?" → use get_espn_stats
+- "OU vs Texas all-time" → use get_cfbd_history  
+- "history" (alone) → ask what kind of history they want
+- "trivia" → use get_trivia_question
+- "show me highlights" → use search_videos
 
-      return res.json({
-        response: `🧠 **OU Trivia**\n\n❓ ${mcq.question}\n\n${optionsText}\n\nReply with **A, B, C, or D**`
-      });
-    }
+Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
+      },
+      ...session.chat
+    ];
 
-    if (isVideoRequest(rawText)) {
-      if (!VIDEO_AGENT_URL) {
-        return res.json({
-          response: "🎬 Video is not enabled yet (VIDEO_AGENT_URL not set)."
-        });
-      }
-
-      console.log(`\n🎬 Video Request: "${rawText}"`);
-      const refinedQuery = refineVideoQuery(rawText);
-      console.log(`🔍 Refined query: "${refinedQuery}"`);
-      
-      const fetchUrl = `${VIDEO_AGENT_URL}?query=${encodeURIComponent(refinedQuery)}&limit=3&ts=${Date.now()}`;
-      console.log(`📞 Calling: ${fetchUrl}`);
-
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), 7000);
-
-      try {
-        const headers = {};
-        if (process.env.VIDEO_AGENT_KEY) {
-          headers["Authorization"] = `Bearer ${process.env.VIDEO_AGENT_KEY}`;
-        }
-
-        const r = await fetch(fetchUrl, { 
-          headers: headers,
-          signal: controller.signal 
-        });
-
-        console.log(`📥 Video agent response status: ${r.status}`);
-
-        if (!r.ok) {
-          console.error(`❌ Video agent returned error: ${r.status}`);
-          return res.json({
-            response: "Sorry, Sooner — I had trouble reaching the video library."
-          });
-        }
-
-        const data = await r.json();
-        console.log(`📦 Video agent returned:`, JSON.stringify(data, null, 2));
-        
-        const results = Array.isArray(data?.results) ? data.results : [];
-        console.log(`✅ Found ${results.length} videos`);
-
-        if (!results.length) {
-          return res.json({
-            response:
-              "Boomer Sooner! I couldn't find a match.\n\nTry:\n• Baker Mayfield highlights\n• OU vs Alabama\n• Oklahoma playoff highlights"
-          });
-        }
-
-        let reply = "Boomer Sooner! Here are some highlights:\n\n";
-        results.forEach((v, i) => {
-          reply += `🎬 ${i + 1}. ${v.title}\n${v.url}\n\n`;
-        });
-
-        return res.json({ response: reply.trim() });
-      } catch (err) {
-        console.error("❌ Video request error:", err.message);
-        return res.json({
-          response: "Sorry, Sooner — video search timed out or failed."
-        });
-      } finally {
-        clearTimeout(t);
-      }
-    }
-
-    // Check CFBD history BEFORE ESPN stats to prioritize matchup queries
-    if (isCFBDHistoryRequest(rawText)) {
-      if (!CFBD_MCP_URL) {
-        return res.json({ response: "📚 CFBD history is not enabled yet (CFBD_MCP_URL not set)." });
-      }
-
-      const out = await callMcp(CFBD_MCP_URL, rawText);
-      if (out.ok) return res.json({ response: out.text });
-
-      console.error("❌ CFBD MCP failed:", out.text);
-      return res.json({ response: "Sorry, Sooner — I couldn't reach CFBD history right now." });
-    }
-
-    if (isESPNStatsRequest(rawText)) {
-      if (!ESPN_MCP_URL) {
-        return res.json({ response: "📊 ESPN stats are not enabled yet (ESPN_MCP_URL not set)." });
-      }
-
-      console.log(`\n🏈 ESPN Stats Request: "${rawText}"`);
-      console.log(`🔗 ESPN_MCP_URL: ${ESPN_MCP_URL}`);
-      
-      const out = await callMcp(ESPN_MCP_URL, rawText);
-      
-      console.log(`📊 ESPN Result - ok: ${out.ok}, text length: ${out.text?.length || 0}`);
-      
-      if (out.ok) return res.json({ response: out.text });
-
-      console.error("❌ ESPN MCP failed:", out.text);
-      return res.json({ response: "Sorry, Sooner — I couldn't reach ESPN stats right now." });
-    }
-
-    return res.json({
-      response: "Boomer Sooner! I can help you with:\n\n🎬 **Videos** - \"show me Baker Mayfield highlights\"\n📊 **Scores/Stats** - \"what's the OU score?\" or \"recent games\"\n📚 **History** - \"OU all-time record\" or \"history\"\n🧠 **Trivia** - \"trivia\" for a fun question\n\nWhat would you like to know?"
+    let response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: messages,
+      tools: tools,
+      tool_choice: "auto"
     });
+
+    let assistantMessage = response.choices[0].message;
+
+    // Handle function calls
+    while (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
+      session.chat.push(assistantMessage);
+
+      for (const toolCall of assistantMessage.tool_calls) {
+        const functionName = toolCall.function.name;
+        const functionArgs = JSON.parse(toolCall.function.arguments);
+        
+        console.log(`🔧 Calling function: ${functionName}`, functionArgs);
+
+        let functionResult;
+
+        switch (functionName) {
+          case "get_trivia_question":
+            functionResult = await getTriviaQuestion();
+            // Store trivia state for answer checking
+            if (!functionResult.error) {
+              session.active = true;
+              session.correctIndex = functionResult.correctIndex;
+              session.explain = functionResult.explanation;
+            }
+            break;
+          
+          case "search_videos":
+            console.log(`🎬 Video search for: "${functionArgs.query}"`);
+            functionResult = await searchVideos(functionArgs.query);
+            break;
+          
+          case "get_espn_stats":
+            console.log(`📊 ESPN stats for: "${functionArgs.query}"`);
+            functionResult = await getESPNStats(functionArgs.query);
+            break;
+          
+          case "get_cfbd_history":
+            console.log(`📚 CFBD history for: "${functionArgs.query}"`);
+            functionResult = await getCFBDHistory(functionArgs.query);
+            // If CFBD fails, add helpful error message
+            if (functionResult.error) {
+              functionResult.userMessage = "I'm having trouble accessing historical data right now. The CFBD service might be down or the query format needs adjustment.";
+            }
+            break;
+          
+          default:
+            functionResult = { error: "Unknown function" };
+        }
+
+        session.chat.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: JSON.stringify(functionResult)
+        });
+      }
+
+      // Get next response from GPT with function results
+      response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: session.chat,
+        tools: tools,
+        tool_choice: "auto"
+      });
+
+      assistantMessage = response.choices[0].message;
+    }
+
+    // Add final assistant response to chat history
+    session.chat.push(assistantMessage);
+
+    return res.json({ response: assistantMessage.content });
 
   } catch (err) {
     console.error("❌ Orchestrator error:", err);
     return res.json({
-      response: "Sorry Sooner — something went wrong on my end."
+      response: "Sorry Sooner — something went wrong on my end. 🏈"
     });
   }
 });
