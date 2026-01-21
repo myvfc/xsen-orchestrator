@@ -391,7 +391,7 @@ const ESPN_MCP_URL = (process.env.ESPN_MCP_URL || "").replace(/\/+$/, "");
 const CFBD_MCP_URL = (process.env.CFBD_MCP_URL || "").replace(/\/+$/, "");
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: (process.env.OPENAI_API_KEY || "").trim().replace(/\s+/g, '')
 });
 
 console.log("🔧 Configuration:");
