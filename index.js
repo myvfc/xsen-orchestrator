@@ -647,8 +647,12 @@ app.post("/chat", async (req, res) => {
         });
       }
 
+      console.log(`\n🎬 Video Request: "${rawText}"`);
       const refinedQuery = refineVideoQuery(rawText);
+      console.log(`🔍 Refined query: "${refinedQuery}"`);
+      
       const fetchUrl = `${VIDEO_AGENT_URL}?query=${encodeURIComponent(refinedQuery)}&limit=3&ts=${Date.now()}`;
+      console.log(`📞 Calling: ${fetchUrl}`);
 
       const controller = new AbortController();
       const t = setTimeout(() => controller.abort(), 7000);
@@ -664,14 +668,20 @@ app.post("/chat", async (req, res) => {
           signal: controller.signal 
         });
 
+        console.log(`📥 Video agent response status: ${r.status}`);
+
         if (!r.ok) {
+          console.error(`❌ Video agent returned error: ${r.status}`);
           return res.json({
             response: "Sorry, Sooner — I had trouble reaching the video library."
           });
         }
 
         const data = await r.json();
+        console.log(`📦 Video agent returned:`, JSON.stringify(data, null, 2));
+        
         const results = Array.isArray(data?.results) ? data.results : [];
+        console.log(`✅ Found ${results.length} videos`);
 
         if (!results.length) {
           return res.json({
@@ -686,6 +696,11 @@ app.post("/chat", async (req, res) => {
         });
 
         return res.json({ response: reply.trim() });
+      } catch (err) {
+        console.error("❌ Video request error:", err.message);
+        return res.json({
+          response: "Sorry, Sooner — video search timed out or failed."
+        });
       } finally {
         clearTimeout(t);
       }
