@@ -1,0 +1,173 @@
+import fs from 'fs';
+
+// Load your existing trivia.json
+const trivia = JSON.parse(fs.readFileSync('trivia.json', 'utf-8'));
+
+// Wrong answer pools organized by type
+const wrongAnswerPools = {
+  years: ['1945', '1950', '1955', '1956', '1971', '1975', '1985', '1986', '1996', '2000', '2003', '2008', '2017', '2024'],
+  coaches: ['Bud Wilkinson', 'Barry Switzer', 'Bob Stoops', 'Lincoln Riley', 'Brent Venables', 'Chuck Fairbanks', 'Gary Gibbs'],
+  heismans: ['Billy Sims', 'Steve Owens', 'Jason White', 'Sam Bradford', 'Baker Mayfield', 'Kyler Murray'],
+  qbs: ['Sam Bradford', 'Baker Mayfield', 'Kyler Murray', 'Jason White', 'Jalen Hurts', 'Landry Jones', 'Trevor Knight'],
+  rbs: ['Billy Sims', 'Steve Owens', 'Adrian Peterson', 'DeMarco Murray', 'Joe Washington', 'Quentin Griffin'],
+  numbers: ['3', '5', '7', '10', '12', '14', '21', '31', '47', '50'],
+  scores: ['7-0', '10-7', '13-2', '17-14', '20-10', '21-17', '28-21', '35-31', '42-14', '55-19'],
+  conferences: ['Big 12', 'Big Eight', 'SEC', 'Big Ten', 'Pac-12'],
+  rivalries: ['Red River Rivalry', 'Bedlam Series', 'Red River Shootout', 'Cotton Bowl Classic'],
+  stadiums: ['Gaylord Family Oklahoma Memorial Stadium', 'Owen Field', 'Cotton Bowl', 'Jerry Jones Stadium'],
+  colors: ['Crimson and Cream', 'Red and White', 'Scarlet and Gray', 'Crimson and White'],
+  mascots: ['Sooner Schooner', 'Boomer', 'Sooner', 'Top Daug']
+};
+
+// Helper function to get wrong answers based on question type
+function generateWrongAnswers(question, correctAnswer) {
+  const q = question.toLowerCase();
+  const wrongAnswers = [];
+  
+  // Year questions
+  if (q.includes('year') || q.includes('when')) {
+    const pool = wrongAnswerPools.years.filter(y => y !== correctAnswer);
+    while (wrongAnswers.length < 3 && pool.length > 0) {
+      const random = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      wrongAnswers.push(random);
+    }
+  }
+  
+  // Coach questions
+  else if (q.includes('coach')) {
+    const pool = wrongAnswerPools.coaches.filter(c => c !== correctAnswer);
+    while (wrongAnswers.length < 3 && pool.length > 0) {
+      const random = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      wrongAnswers.push(random);
+    }
+  }
+  
+  // Heisman questions
+  else if (q.includes('heisman')) {
+    const pool = wrongAnswerPools.heismans.filter(h => h !== correctAnswer);
+    while (wrongAnswers.length < 3 && pool.length > 0) {
+      const random = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      wrongAnswers.push(random);
+    }
+  }
+  
+  // QB questions
+  else if (q.includes('quarterback') || q.includes('qb')) {
+    const pool = wrongAnswerPools.qbs.filter(qb => qb !== correctAnswer);
+    while (wrongAnswers.length < 3 && pool.length > 0) {
+      const random = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      wrongAnswers.push(random);
+    }
+  }
+  
+  // Running back questions
+  else if (q.includes('running back') || q.includes('rushing')) {
+    const pool = wrongAnswerPools.rbs.filter(rb => rb !== correctAnswer);
+    while (wrongAnswers.length < 3 && pool.length > 0) {
+      const random = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      wrongAnswers.push(random);
+    }
+  }
+  
+  // Number questions (streak, count, etc)
+  else if (q.includes('how many') || q.includes('consecutive')) {
+    const pool = wrongAnswerPools.numbers.filter(n => n !== correctAnswer);
+    while (wrongAnswers.length < 3 && pool.length > 0) {
+      const random = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      wrongAnswers.push(random);
+    }
+  }
+  
+  // Score questions
+  else if (q.includes('score')) {
+    const pool = wrongAnswerPools.scores.filter(s => s !== correctAnswer);
+    while (wrongAnswers.length < 3 && pool.length > 0) {
+      const random = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      wrongAnswers.push(random);
+    }
+  }
+  
+  // Conference questions
+  else if (q.includes('conference')) {
+    const pool = wrongAnswerPools.conferences.filter(c => c !== correctAnswer);
+    while (wrongAnswers.length < 3 && pool.length > 0) {
+      const random = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      wrongAnswers.push(random);
+    }
+  }
+  
+  // Rivalry questions
+  else if (q.includes('rivalry') || q.includes('rival')) {
+    const pool = wrongAnswerPools.rivalries.filter(r => r !== correctAnswer);
+    while (wrongAnswers.length < 3 && pool.length > 0) {
+      const random = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      wrongAnswers.push(random);
+    }
+  }
+  
+  // Stadium questions
+  else if (q.includes('stadium') || q.includes('home')) {
+    const pool = wrongAnswerPools.stadiums.filter(s => s !== correctAnswer);
+    while (wrongAnswers.length < 3 && pool.length > 0) {
+      const random = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      wrongAnswers.push(random);
+    }
+  }
+  
+  // Color questions
+  else if (q.includes('color')) {
+    const pool = wrongAnswerPools.colors.filter(c => c !== correctAnswer);
+    while (wrongAnswers.length < 3 && pool.length > 0) {
+      const random = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      wrongAnswers.push(random);
+    }
+  }
+  
+  // Mascot questions
+  else if (q.includes('mascot')) {
+    const pool = wrongAnswerPools.mascots.filter(m => m !== correctAnswer);
+    while (wrongAnswers.length < 3 && pool.length > 0) {
+      const random = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      wrongAnswers.push(random);
+    }
+  }
+  
+  // Default: pull from similar answers in the trivia set
+  else {
+    const allAnswers = trivia
+      .map(t => t.answer)
+      .filter(a => a !== correctAnswer && a.length > 2);
+    
+    const shuffled = allAnswers.sort(() => Math.random() - 0.5);
+    wrongAnswers.push(...shuffled.slice(0, 3));
+  }
+  
+  // Ensure we always have 3 wrong answers
+  while (wrongAnswers.length < 3) {
+    const allAnswers = trivia
+      .map(t => t.answer)
+      .filter(a => a !== correctAnswer && !wrongAnswers.includes(a));
+    wrongAnswers.push(allAnswers[Math.floor(Math.random() * allAnswers.length)]);
+  }
+  
+  return wrongAnswers.slice(0, 3);
+}
+
+// Process all trivia questions
+const enhancedTrivia = trivia.map(item => {
+  const wrongAnswers = generateWrongAnswers(item.question, item.answer);
+  
+  return {
+    ...item,
+    wrongAnswers,
+    explanation: item.explanation || item.answer
+  };
+});
+
+// Save the enhanced trivia
+fs.writeFileSync('trivia_enhanced.json', JSON.stringify(enhancedTrivia, null, 2));
+
+console.log(`✅ Generated wrong answers for ${enhancedTrivia.length} questions`);
+console.log('📁 Saved to: trivia_enhanced.json');
+console.log('\nSample output:');
+console.log(JSON.stringify(enhancedTrivia.slice(0, 3), null, 2));
