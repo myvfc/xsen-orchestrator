@@ -116,6 +116,20 @@ function buildMCQ(q) {
   const correct = sanitize(q?.answer);
   const correctNorm = normalizeAnswer(correct);
 
+  // ALWAYS use wrongAnswers if they exist
+  if (Array.isArray(q?.wrongAnswers) && q.wrongAnswers.length >= 3) {
+    const wrongAnswers = q.wrongAnswers.slice(0, 3).map(a => sanitize(a));
+    const options = shuffle([correct, ...wrongAnswers]);
+    
+    return {
+      question: sanitize(q?.question),
+      options,
+      correctIndex: options.findIndex(o => normalizeAnswer(o) === correctNorm),
+      explanation: sanitize(q?.explanation) || correct
+    };
+  }
+
+  // Otherwise, generate wrong answers from other trivia questions
   const allOtherAnswers = TRIVIA
     .map(t => sanitize(t?.answer))
     .filter(a => a && normalizeAnswer(a) !== correctNorm);
@@ -171,7 +185,7 @@ function isAnswerChoice(text = "") {
 }
 
 function isVideoRequest(text = "") {
-  return /(video|videos|highlight|highlights|clip|clips|replay|watch|vod)/i.test(text);
+  return /(video|videos|highlight|highlights|clip|clips|replay|watch|vod|see this moment|see this|show this)/i.test(text);
 }
 
 function refineVideoQuery(text = "") {
@@ -197,7 +211,10 @@ function isCFBDHistoryRequest(text = "") {
   // If the ENTIRE query is just "history", treat it as a history request
   if (lowerText === "history") return true;
   
-  return /\b(all[- ]time|historical|record in|season|since|bowl|championship|national title|conference title|series|head to head|vs\.?|coaches|heisman|recruiting|talent|matchup)\b/i.test(
+  // Check for specific history patterns - prioritize vs/matchup queries
+  if (/\bvs\.?\b|\bagainst\b|\bversus\b/i.test(text)) return true;
+  
+  return /\b(all[- ]time|historical|record in|season|since|bowl|championship|national title|conference title|series|head to head|coaches|heisman|recruiting|talent|matchup)\b/i.test(
     text
   );
 }
@@ -674,6 +691,19 @@ app.post("/chat", async (req, res) => {
       }
     }
 
+    // Check CFBD history BEFORE ESPN stats to prioritize matchup queries
+    if (isCFBDHistoryRequest(rawText)) {
+      if (!CFBD_MCP_URL) {
+        return res.json({ response: "📚 CFBD history is not enabled yet (CFBD_MCP_URL not set)." });
+      }
+
+      const out = await callMcp(CFBD_MCP_URL, rawText);
+      if (out.ok) return res.json({ response: out.text });
+
+      console.error("❌ CFBD MCP failed:", out.text);
+      return res.json({ response: "Sorry, Sooner — I couldn't reach CFBD history right now." });
+    }
+
     if (isESPNStatsRequest(rawText)) {
       if (!ESPN_MCP_URL) {
         return res.json({ response: "📊 ESPN stats are not enabled yet (ESPN_MCP_URL not set)." });
@@ -690,18 +720,6 @@ app.post("/chat", async (req, res) => {
 
       console.error("❌ ESPN MCP failed:", out.text);
       return res.json({ response: "Sorry, Sooner — I couldn't reach ESPN stats right now." });
-    }
-
-    if (isCFBDHistoryRequest(rawText)) {
-      if (!CFBD_MCP_URL) {
-        return res.json({ response: "📚 CFBD history is not enabled yet (CFBD_MCP_URL not set)." });
-      }
-
-      const out = await callMcp(CFBD_MCP_URL, rawText);
-      if (out.ok) return res.json({ response: out.text });
-
-      console.error("❌ CFBD MCP failed:", out.text);
-      return res.json({ response: "Sorry, Sooner — I couldn't reach CFBD history right now." });
     }
 
     return res.json({
