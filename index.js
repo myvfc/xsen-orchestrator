@@ -180,6 +180,17 @@ async function getCFBDHistory(query) {
   
   const lowerQuery = query.toLowerCase();
   
+  // Extract year from query if mentioned
+  let year = null;
+  const yearMatch = query.match(/\b(19\d{2}|20\d{2})\b/); // Matches 1900-2099
+  if (yearMatch) {
+    year = parseInt(yearMatch[1]);
+    console.log(`📅 Extracted year from query: ${year}`);
+  } else {
+    year = new Date().getFullYear() - 1; // Default to last completed season
+    console.log(`📅 Using default year: ${year}`);
+  }
+  
   let toolName = "get_team_records"; // default
   let args = { team: "Oklahoma" };
   
@@ -192,6 +203,7 @@ async function getCFBDHistory(query) {
       .replace(/\b(oklahoma|sooners|ou)\b/gi, "")
       .replace(/\b(vs\.?|against|versus|all[- ]time|record|history|head[- ]?to[- ]?head)\b/gi, "")
       .replace(/\b(football|basketball|game)\b/gi, "")
+      .replace(/\b(19\d{2}|20\d{2})\b/gi, "") // Remove year
       .trim();
     
     // Common team name mappings
@@ -211,61 +223,52 @@ async function getCFBDHistory(query) {
   // Play-by-play for specific game
   else if (/play[- ]?by[- ]?play|plays|scoring|drive/i.test(query)) {
     toolName = "get_play_by_play";
-    // This needs gameId which we don't have - suggest they ask for recent game first
     return { error: "For play-by-play, please ask for the game score first, then I can get detailed play information." };
   }
   // Player stats
   else if (/player stats|individual stats|who led|leading|top player/i.test(query)) {
     toolName = "get_player_stats";
-    const year = new Date().getFullYear();
     args = { team: "Oklahoma", year: year };
   }
   // Game-by-game stats
   else if (/game[- ]?by[- ]?game|each game|every game|game stats/i.test(query)) {
     toolName = "get_game_stats";
-    const year = new Date().getFullYear();
     args = { team: "Oklahoma", year: year };
   }
   // Team season stats
   else if (/team stats|season stats|total yards|total touchdowns|offensive stats|defensive stats/i.test(query)) {
     toolName = "get_team_stats";
-    const year = new Date().getFullYear();
     args = { team: "Oklahoma", year: year };
   }
   // Conference standings
   else if (/standings?|conference|big 12|sec/i.test(query)) {
     toolName = "get_conference_standings";
     const conference = /sec/i.test(query) ? "SEC" : "Big 12";
-    args = { conference: conference };
+    args = { conference: conference, year: year };
   }
   // Recruiting query
   else if (/recruit/i.test(query)) {
     toolName = "get_recruiting";
-    const year = new Date().getFullYear();
     args = { team: "Oklahoma", year: year };
   }
   // Talent/composite ranking
   else if (/talent|composite/i.test(query)) {
     toolName = "get_team_talent";
-    const year = new Date().getFullYear();
     args = { team: "Oklahoma", year: year };
   }
-  // Rankings (AP, Coaches, CFP)
-  else if (/ranking|poll|ap|coaches|playoff ranking/i.test(query)) {
+  // Rankings (AP, Coaches, CFP) - FIXED to use extracted year
+  else if (/ranking|poll|ap|coaches|playoff ranking|final ranking/i.test(query)) {
     toolName = "get_team_rankings";
-    const year = new Date().getFullYear();
     args = { team: "Oklahoma", year: year };
   }
   // Schedule
   else if (/schedule|upcoming|next game|remaining games/i.test(query)) {
     toolName = "get_schedule";
-    const year = new Date().getFullYear();
     args = { team: "Oklahoma", year: year };
   }
   // Returning production
   else if (/returning|production|who'?s back|veterans/i.test(query)) {
     toolName = "get_returning_production";
-    const year = new Date().getFullYear();
     args = { team: "Oklahoma", year: year };
   }
   // Venue/stadium info
@@ -276,7 +279,7 @@ async function getCFBDHistory(query) {
   // Default to team records for general history
   else {
     toolName = "get_team_records";
-    args = { team: "Oklahoma", startYear: 2020, endYear: 2024 };
+    args = { team: "Oklahoma", startYear: 2020, endYear: year };
   }
   
   console.log(`🔧 Using CFBD tool: ${toolName}`, args);
