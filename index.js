@@ -352,22 +352,23 @@ const tools = [
     }
   },
   {
-    type: "function",
-    function: {
-      name: "get_cfbd_history",
-      description: "Get HISTORICAL football data and ALL-TIME records. Use for: all-time record, head-to-head history, past seasons, historical matchups, bowl records, championship history, series records. Keywords: 'all-time', 'history', 'vs', 'against', 'series', 'bowl games', 'championships'.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description: "The history query (e.g., 'OU all-time record vs Texas', 'OU national championships', 'OU vs Nebraska series history')"
-          }
-        },
-        required: ["query"]
-      }
+    {
+  type: "function",
+  function: {
+    name: "get_cfbd_history",
+    description: "Get HISTORICAL football data and ALL-TIME records. Use for: all-time record, head-to-head history, past seasons, historical matchups, bowl records, championship history, series records, rankings from past seasons. Keywords: 'all-time', 'history', 'vs', 'against', 'series', 'bowl games', 'championships', 'final ranking', 'season ranking'.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Pass the user's EXACT question without modification. Do not change years or rephrase. Example: if user asks '2024', pass '2024' exactly."
+        }
+      },
+      required: ["query"]
     }
   }
+}
 ];
 
 /* ------------------------------------------------------------------ */
