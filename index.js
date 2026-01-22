@@ -1,4 +1,4 @@
-import express from "express";
+mport express from "express";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
@@ -338,7 +338,7 @@ const tools = [
     type: "function",
     function: {
       name: "get_espn_stats",
-      description: "Get CURRENT/RECENT game scores, today's games, this week's schedule, and live stats from ESPN. Use for: current score, recent game, today's game, this week, latest game, schedule. DO NOT use for all-time records or historical matchups.",
+      description: "Get CURRENT/RECENT game scores, today's games, this week's schedule, and live stats from ESPN. Use for: current score, recent game, today's game, this week, latest game, schedule, current standings. DO NOT use for player season stats, all-time records, or historical matchups.",
       parameters: {
         type: "object",
         properties: {
@@ -352,22 +352,22 @@ const tools = [
     }
   },
   {
-  type: "function",
-  function: {
-    name: "get_cfbd_history",
-    description: "Get HISTORICAL football data and ALL-TIME records. Use for: all-time record, head-to-head history, past seasons, historical matchups, bowl records, championship history, series records, rankings from past seasons. Keywords: 'all-time', 'history', 'vs', 'against', 'series', 'bowl games', 'championships', 'final ranking', 'season ranking'.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "Pass the user's EXACT question without modification. Do not change years or rephrase. Example: if user asks '2024', pass '2024' exactly."
-        }
-      },
-      required: ["query"]
+    type: "function",
+    function: {
+      name: "get_cfbd_history",
+      description: "Get HISTORICAL football data, ALL-TIME records, and PLAYER SEASON STATISTICS. Use for: player stats (e.g. 'John Mateer stats'), season stats, all-time record, head-to-head history, past seasons, historical matchups, bowl records, championship history, series records, rankings from past seasons. Keywords: 'player stats', 'season stats', 'all-time', 'history', 'vs', 'against', 'series', 'bowl games', 'championships', 'final ranking', 'season ranking'.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Pass the user's EXACT question without modification. Do not change years or rephrase. Example: if user asks '2024', pass '2024' exactly."
+          }
+        },
+        required: ["query"]
+      }
     }
   }
-}
 ];
 
 /* ------------------------------------------------------------------ */
@@ -1014,13 +1014,14 @@ IMPORTANT TOOL USAGE RULES:
 - get_trivia_question: ONLY when user explicitly says "trivia", "quiz", or "test me"
 - search_videos: ONLY when user asks for "video", "highlight", "watch", or "show me"
 - get_espn_stats: For CURRENT/RECENT games (today, this week, latest score)
-- get_cfbd_history: For ALL-TIME records, historical matchups, "vs", series records
+- get_cfbd_history: For ALL-TIME records, historical matchups, "vs", series records, AND PLAYER SEASON STATS
 
 When tools return errors, acknowledge the issue and provide what information you can from your general knowledge about OU sports.
 
 Common queries:
 - "what's the score?" → use get_espn_stats
 - "OU vs Texas all-time" → use get_cfbd_history  
+- "John Mateer stats 2025" → use get_cfbd_history (player season stats)
 - "history" (alone) → ask what kind of history they want
 - "trivia" → use get_trivia_question
 - "show me highlights" → use search_videos
@@ -1125,3 +1126,4 @@ console.log("🚪 Binding to PORT:", PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
+
