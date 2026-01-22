@@ -352,7 +352,6 @@ const tools = [
     }
   },
   {
-    {
   type: "function",
   function: {
     name: "get_cfbd_history",
