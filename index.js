@@ -225,11 +225,14 @@ async function getCFBDHistory(query) {
     toolName = "get_play_by_play";
     return { error: "For play-by-play, please ask for the game score first, then I can get detailed play information." };
   }
-  // Player stats
-  else if (/player stats|individual stats|who led|leading|top player/i.test(query)) {
-    toolName = "get_player_stats";
-    args = { team: "Oklahoma", year: year };
-  }
+ // Player stats - detect "player stats" OR "Name Name stats" patterns
+else if (
+  /player stats|individual stats|who led|leading|top player/i.test(query) ||
+  (/\b[A-Z][a-z]+\s+[A-Z][a-z]+.*stats/i.test(query) && !/team stats|season stats/i.test(query))
+) {
+  toolName = "get_player_stats";
+  args = { team: "Oklahoma", year: year };
+}
   // Game-by-game stats
   else if (/game[- ]?by[- ]?game|each game|every game|game stats/i.test(query)) {
     toolName = "get_game_stats";
