@@ -303,6 +303,82 @@ async function getCFBDHistory(query) {
   }
 }
 
+async function getCFBDBasketball(query) {
+  if (!CFBD_BASKETBALL_MCP_URL) {
+    return { error: "CFBD Basketball not configured" };
+  }
+  
+  console.log(`\n🏀 CFBD Basketball Request: "${query}"`);
+  console.log(`🔗 CFBD_BASKETBALL_MCP_URL: ${CFBD_BASKETBALL_MCP_URL}`);
+  
+  const lowerQuery = query.toLowerCase();
+  
+  // Extract year from query if mentioned
+  let year = null;
+  const yearMatch = query.match(/\b(19\d{2}|20\d{2})\b/);
+  if (yearMatch) {
+    year = parseInt(yearMatch[1]);
+    console.log(`📅 Extracted year from query: ${year}`);
+  } else {
+    year = new Date().getFullYear(); // Basketball season is current year
+    console.log(`📅 Using default year: ${year}`);
+  }
+  
+  let toolName = "get_basketball_score"; // default
+  let args = { team: "Oklahoma", year: year };
+  
+  // Player stats - detect "player stats" OR "Name Name stats" patterns
+  if (
+    /player stats|individual stats|who led|leading|top scorer/i.test(query) ||
+    (/\b[A-Z][a-z]+\s+[A-Z][a-z]+.*stats/i.test(query) && !/team stats|season stats/i.test(query))
+  ) {
+    toolName = "get_basketball_player_stats";
+    args = { team: "Oklahoma", year: year, query: query };
+  }
+  // Team stats
+  else if (/team stats|season stats/i.test(query)) {
+    toolName = "get_basketball_team_stats";
+    args = { team: "Oklahoma", year: year };
+  }
+  // Schedule
+  else if (/schedule|upcoming|next game|remaining games/i.test(query)) {
+    toolName = "get_basketball_schedule";
+    args = { team: "Oklahoma", year: year };
+  }
+  // Rankings
+  else if (/ranking|poll|ap|coaches/i.test(query)) {
+    toolName = "get_basketball_rankings";
+    args = { team: "Oklahoma", year: year };
+  }
+  // Shooting stats
+  else if (/shooting|3pt|three point|fg%|field goal|free throw|ft%/i.test(query)) {
+    toolName = "get_basketball_shooting_stats";
+    args = { team: "Oklahoma", year: year, query: query };
+  }
+  // Roster
+  else if (/roster|players|team list/i.test(query)) {
+    toolName = "get_basketball_roster";
+    args = { team: "Oklahoma", year: year };
+  }
+  
+  console.log(`🔧 Using Basketball tool: ${toolName}`, args);
+  
+  const payload = { name: toolName, arguments: args };
+  const result = await fetchJson(CFBD_BASKETBALL_MCP_URL, payload, 7000, "tools/call");
+  
+  console.log(`📊 Basketball Result - ok: ${result.ok}, status: ${result.status}`);
+  
+  if (result.ok && !result.json?.error) {
+    const responseText = extractMcpText(result.json) || result.text || "";
+    console.log(`✅ Basketball Response:`, responseText.substring(0, 200));
+    return { data: responseText };
+  } else {
+    const errorMsg = result.json?.error?.message || result.text || "Basketball request failed";
+    console.error(`❌ Basketball Error:`, errorMsg);
+    return { error: errorMsg };
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*                      OPENAI FUNCTION TOOLS                         */
 /* ------------------------------------------------------------------ */
@@ -358,13 +434,30 @@ const tools = [
     type: "function",
     function: {
       name: "get_cfbd_history",
-      description: "Get HISTORICAL football data, ALL-TIME records, and PLAYER SEASON STATISTICS. Use for: player stats (e.g. 'John Mateer stats'), season stats, all-time record, head-to-head history, past seasons, historical matchups, bowl records, championship history, series records, rankings from past seasons. Keywords: 'player stats', 'season stats', 'all-time', 'history', 'vs', 'against', 'series', 'bowl games', 'championships', 'final ranking', 'season ranking'.",
+      description: "Get FOOTBALL data ONLY. HISTORICAL football data, ALL-TIME football records, and FOOTBALL PLAYER SEASON STATISTICS. Use ONLY for FOOTBALL queries. Keywords: 'football', 'fb', 'gridiron', plus 'player stats', 'season stats', 'all-time', 'history', 'vs', 'against', 'series', 'bowl games', 'championships', 'final ranking', 'season ranking'. DO NOT use for basketball - use get_cfbd_basketball instead.",
       parameters: {
         type: "object",
         properties: {
           query: {
             type: "string",
             description: "Pass the user's EXACT question without modification. Do not change years or rephrase. Example: if user asks '2024', pass '2024' exactly."
+          }
+        },
+        required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_cfbd_basketball",
+      description: "Get BASKETBALL data ONLY. Use for ANY and ALL basketball-related queries including: scores, player stats, team stats, schedule, rankings, shooting stats, roster. ALWAYS use this for basketball, hoops, or court-related questions. Keywords: 'basketball', 'hoops', 'bball', 'court', 'dunk', 'three-pointer', '3PT', 'roster' (if basketball context), 'sam godwin', 'jalon moore'. If the query mentions 'basketball' or basketball players, ALWAYS use this tool.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "The basketball query (e.g., 'What was the OU basketball score?', 'Sam Godwin stats', 'OU basketball schedule', 'list basketball roster')"
           }
         },
         required: ["query"]
@@ -395,6 +488,7 @@ console.log("  NODE_ENV:", process.env.NODE_ENV || "not set");
 const VIDEO_AGENT_URL = (process.env.VIDEO_AGENT_URL || "").replace(/\/+$/, "");
 const ESPN_MCP_URL = (process.env.ESPN_MCP_URL || "").replace(/\/+$/, "");
 const CFBD_MCP_URL = (process.env.CFBD_MCP_URL || "").replace(/\/+$/, "");
+const CFBD_BASKETBALL_MCP_URL = (process.env.CFBD_BASKETBALL_MCP_URL || "").replace(/\/+$/, "");
 
 const openai = new OpenAI({
   apiKey: (process.env.OPENAI_API_KEY || "").trim().replace(/\s+/g, '')
@@ -404,6 +498,7 @@ console.log("🔧 Configuration:");
 console.log("  VIDEO_AGENT_URL:", VIDEO_AGENT_URL || "(not set)");
 console.log("  ESPN_MCP_URL:", ESPN_MCP_URL || "(not set)");
 console.log("  CFBD_MCP_URL:", CFBD_MCP_URL || "(not set)");
+console.log("  CFBD_BASKETBALL_MCP_URL:", CFBD_BASKETBALL_MCP_URL || "(not set)");
 console.log("  MCP_API_KEY:", process.env.MCP_API_KEY ? "✅ Set" : "❌ Not set");
 console.log("  OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "✅ Set" : "❌ Not set");
 
@@ -1017,7 +1112,8 @@ IMPORTANT TOOL USAGE RULES:
 - get_trivia_question: ONLY when user explicitly says "trivia", "quiz", or "test me"
 - search_videos: ONLY when user asks for "video", "highlight", "watch", or "show me"
 - get_espn_stats: For CURRENT/RECENT games (today, this week, latest score)
-- get_cfbd_history: For ALL-TIME records, historical matchups, "vs", series records, AND PLAYER SEASON STATS
+- get_cfbd_history: For FOOTBALL all-time records, historical matchups, "vs", series records, AND PLAYER SEASON STATS
+- get_cfbd_basketball: For ANY BASKETBALL queries (scores, stats, schedule, rankings, roster)
 
 When tools return errors, acknowledge the issue and provide what information you can from your general knowledge about OU sports.
 
@@ -1025,6 +1121,9 @@ Common queries:
 - "what's the score?" → use get_espn_stats
 - "OU vs Texas all-time" → use get_cfbd_history  
 - "John Mateer stats 2025" → use get_cfbd_history (player season stats)
+- "basketball score" → use get_cfbd_basketball
+- "Sam Godwin stats" → use get_cfbd_basketball
+- "OU hoops schedule" → use get_cfbd_basketball
 - "history" (alone) → ask what kind of history they want
 - "trivia" → use get_trivia_question
 - "show me highlights" → use search_videos
@@ -1082,6 +1181,14 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
             // If CFBD fails, add helpful error message
             if (functionResult.error) {
               functionResult.userMessage = "I'm having trouble accessing historical data right now. The CFBD service might be down or the query format needs adjustment.";
+            }
+            break;
+          
+          case "get_cfbd_basketball":
+            console.log(`🏀 CFBD basketball for: "${functionArgs.query}"`);
+            functionResult = await getCFBDBasketball(functionArgs.query);
+            if (functionResult.error) {
+              functionResult.userMessage = "I'm having trouble accessing basketball data right now. The basketball service might be down or the query format needs adjustment.";
             }
             break;
           
