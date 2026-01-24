@@ -175,6 +175,12 @@ async function getCFBDHistory(query) {
     return { error: "CFBD history not configured" };
   }
   
+  // DEFENSIVE CHECK: Reject basketball queries
+  if (/basketball|hoops|bball|court|sam godwin|jalon moore|javian mcollum/i.test(query)) {
+    console.log(`⚠️ BASKETBALL query detected in football function, redirecting...`);
+    return { error: "This appears to be a basketball query. Please use the basketball tool instead." };
+  }
+  
   console.log(`\n📚 CFBD History Request: "${query}"`);
   console.log(`🔗 CFBD_MCP_URL: ${CFBD_MCP_URL}`);
   
@@ -327,8 +333,13 @@ async function getCFBDBasketball(query) {
   let toolName = "get_basketball_score"; // default
   let args = { team: "Oklahoma", year: year };
   
+  // Shooting stats - CHECK FIRST before player stats!
+  if (/shooting|3pt|three point|fg%|field goal|free throw|ft%/i.test(query)) {
+    toolName = "get_basketball_shooting_stats";
+    args = { team: "Oklahoma", year: year, query: query };
+  }
   // Player stats - detect "player stats" OR "Name Name stats" patterns
-  if (
+  else if (
     /player stats|individual stats|who led|leading|top scorer/i.test(query) ||
     (/\b[A-Z][a-z]+\s+[A-Z][a-z]+.*stats/i.test(query) && !/team stats|season stats/i.test(query))
   ) {
@@ -433,14 +444,14 @@ const tools = [
   {
     type: "function",
     function: {
-      name: "get_cfbd_history",
-      description: "Get FOOTBALL data ONLY. HISTORICAL football data, ALL-TIME football records, and FOOTBALL PLAYER SEASON STATISTICS. Use ONLY for FOOTBALL queries. Keywords: 'football', 'fb', 'gridiron', plus 'player stats', 'season stats', 'all-time', 'history', 'vs', 'against', 'series', 'bowl games', 'championships', 'final ranking', 'season ranking'. DO NOT use for basketball - use get_cfbd_basketball instead.",
+      name: "get_cfbd_basketball",
+      description: "Get BASKETBALL data ONLY. Use for ANY and ALL basketball-related queries including: scores, player stats, team stats, schedule, rankings, shooting stats, roster. ALWAYS use this for basketball, hoops, or court-related questions. Keywords: 'basketball', 'hoops', 'bball', 'court', 'dunk', 'three-pointer', '3PT', 'roster' (if basketball context), 'sam godwin', 'jalon moore'. If the query mentions 'basketball' or basketball players, ALWAYS use this tool.",
       parameters: {
         type: "object",
         properties: {
           query: {
             type: "string",
-            description: "Pass the user's EXACT question without modification. Do not change years or rephrase. Example: if user asks '2024', pass '2024' exactly."
+            description: "The basketball query (e.g., 'What was the OU basketball score?', 'Sam Godwin stats', 'OU basketball schedule', 'list basketball roster')"
           }
         },
         required: ["query"]
@@ -450,14 +461,14 @@ const tools = [
   {
     type: "function",
     function: {
-      name: "get_cfbd_basketball",
-      description: "Get BASKETBALL data ONLY. Use for ANY and ALL basketball-related queries including: scores, player stats, team stats, schedule, rankings, shooting stats, roster. ALWAYS use this for basketball, hoops, or court-related questions. Keywords: 'basketball', 'hoops', 'bball', 'court', 'dunk', 'three-pointer', '3PT', 'roster' (if basketball context), 'sam godwin', 'jalon moore'. If the query mentions 'basketball' or basketball players, ALWAYS use this tool.",
+      name: "get_cfbd_history",
+      description: "Get FOOTBALL data ONLY. HISTORICAL football data, ALL-TIME football records, and FOOTBALL PLAYER SEASON STATISTICS. Use ONLY for FOOTBALL queries. Keywords: 'football', 'fb', 'gridiron', plus 'player stats', 'season stats', 'all-time', 'history', 'vs', 'against', 'series', 'bowl games', 'championships', 'final ranking', 'season ranking'. DO NOT use for basketball - use get_cfbd_basketball instead.",
       parameters: {
         type: "object",
         properties: {
           query: {
             type: "string",
-            description: "The basketball query (e.g., 'What was the OU basketball score?', 'Sam Godwin stats', 'OU basketball schedule', 'list basketball roster')"
+            description: "Pass the user's EXACT question without modification. Do not change years or rephrase. Example: if user asks '2024', pass '2024' exactly."
           }
         },
         required: ["query"]
@@ -1236,5 +1247,6 @@ console.log("🚪 Binding to PORT:", PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
+
 
 
