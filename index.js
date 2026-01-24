@@ -200,8 +200,14 @@ async function getCFBDHistory(query) {
   let toolName = "get_team_records"; // default
   let args = { team: "Oklahoma" };
   
-  // Detect matchup queries (vs, against, etc.)
-  if (/\bvs\.?\b|\bagainst\b|\bversus\b|head[- ]?to[- ]?head/i.test(query)) {
+  // Game-by-game stats - CHECK FIRST before matchup check!
+  if (/game[- ]?by[- ]?game|each game|every game/i.test(query) || 
+      (/game stats/i.test(query) && /\bvs\.?\b|\bagainst\b/i.test(query))) {
+    toolName = "get_game_stats";
+    args = { team: "Oklahoma", year: year };
+  }
+  // Detect matchup queries (vs, against, etc.) - but NOT if asking for game stats
+  else if (/\bvs\.?\b|\bagainst\b|\bversus\b|head[- ]?to[- ]?head/i.test(query)) {
     toolName = "get_team_matchup";
     // Extract opponent
     let opponent = query
@@ -238,11 +244,6 @@ async function getCFBDHistory(query) {
   ) {
     toolName = "get_player_stats";
     args = { team: "Oklahoma", year: year, query: query }; // Pass query so CFBD can extract player name
-  }
-  // Game-by-game stats
-  else if (/game[- ]?by[- ]?game|each game|every game|game stats/i.test(query)) {
-    toolName = "get_game_stats";
-    args = { team: "Oklahoma", year: year };
   }
   // Team season stats
   else if (/team stats|season stats|total yards|total touchdowns|offensive stats|defensive stats/i.test(query)) {
@@ -1247,7 +1248,3 @@ console.log("🚪 Binding to PORT:", PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
-
-
-
-
