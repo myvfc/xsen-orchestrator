@@ -205,6 +205,26 @@ async function getCFBDHistory(query) {
       (/game stats/i.test(query) && /\bvs\.?\b|\bagainst\b/i.test(query))) {
     toolName = "get_game_stats";
     args = { team: "Oklahoma", year: year };
+    
+    // Extract opponent if asking about specific game
+    if (/\bvs\.?\b|\bagainst\b/i.test(query)) {
+      let opponent = query
+        .toLowerCase()
+        .replace(/\b(oklahoma|sooners|ou)\b/gi, "")
+        .replace(/\b(vs\.?|against|game|stats|football)\b/gi, "")
+        .replace(/\b(19\d{2}|20\d{2})\b/gi, "")
+        .trim();
+      
+      // Common team name mappings
+      if (/texas/i.test(opponent) && !/tech|state/i.test(opponent)) opponent = "Texas";
+      else if (/nebraska/i.test(opponent)) opponent = "Nebraska";
+      else if (/alabama|bama/i.test(opponent)) opponent = "Alabama";
+      else if (/oklahoma state|osu|cowboys|pokes/i.test(opponent)) opponent = "Oklahoma State";
+      
+      if (opponent) {
+        args.opponent = opponent;
+      }
+    }
   }
   // Detect matchup queries (vs, against, etc.) - but NOT if asking for game stats
   else if (/\bvs\.?\b|\bagainst\b|\bversus\b|head[- ]?to[- ]?head/i.test(query)) {
