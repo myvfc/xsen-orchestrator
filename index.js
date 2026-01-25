@@ -449,7 +449,7 @@ const tools = [
     type: "function",
     function: {
       name: "get_espn_stats",
-      description: "Get CURRENT/RECENT game scores, today's games, this week's schedule, and live stats from ESPN. Use for: current score, recent game, today's game, this week, latest game, schedule, current standings. DO NOT use for player season stats, all-time records, or historical matchups.",
+      description: "Get CURRENT/RECENT game scores, today's games, this week's schedule, and live stats from ESPN. Use for: current score, recent game, today's game, this week, latest game, schedule. DO NOT use for player season stats, all-time records, historical matchups, or conference standings.",
       parameters: {
         type: "object",
         properties: {
@@ -483,7 +483,7 @@ const tools = [
     type: "function",
     function: {
       name: "get_cfbd_history",
-      description: "Get FOOTBALL data ONLY. HISTORICAL football data, ALL-TIME football records, and FOOTBALL PLAYER SEASON STATISTICS. Use ONLY for FOOTBALL queries. Keywords: 'football', 'fb', 'gridiron', plus 'player stats', 'season stats', 'all-time', 'history', 'vs', 'against', 'series', 'bowl games', 'championships', 'final ranking', 'season ranking'. DO NOT use for basketball - use get_cfbd_basketball instead.",
+      description: "Get FOOTBALL data ONLY. HISTORICAL football data, ALL-TIME football records, CONFERENCE STANDINGS, and FOOTBALL PLAYER SEASON STATISTICS. Use ONLY for FOOTBALL queries. Keywords: 'football', 'fb', 'gridiron', plus 'player stats', 'season stats', 'all-time', 'history', 'vs', 'against', 'series', 'bowl games', 'championships', 'final ranking', 'season ranking', 'standings', 'conference', 'Big 12', 'SEC'. DO NOT use for basketball - use get_cfbd_basketball instead.",
       parameters: {
         type: "object",
         properties: {
@@ -679,7 +679,7 @@ function refineVideoQuery(text = "") {
 }
 
 function isESPNStatsRequest(text = "") {
-  return /\b(score|scores|record|standings|stats|stat line|yards|tds|touchdowns|who won|final|rankings|game|games|today|this week|last week|schedule|recent|latest)\b/i.test(
+  return /\b(score|scores|record|stats|stat line|yards|tds|touchdowns|who won|final|rankings|game|games|today|this week|last week|schedule|recent|latest)\b/i.test(
     text
   );
 }
@@ -1268,4 +1268,5 @@ console.log("🚪 Binding to PORT:", PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
+
 
