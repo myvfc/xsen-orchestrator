@@ -20,7 +20,8 @@ app.get("/", (req, res) => {
     triviaLoaded: TRIVIA.length,
     videoEnabled: Boolean(VIDEO_AGENT_URL),
     espnEnabled: Boolean(ESPN_MCP_URL),
-    cfbdEnabled: Boolean(CFBD_MCP_URL)
+    cfbdEnabled: Boolean(CFBD_MCP_URL),
+    ncaaWomensEnabled: Boolean(NCAA_WOMENS_MCP_URL)
   });
 });
 
@@ -411,6 +412,108 @@ async function getCFBDBasketball(query) {
   }
 }
 
+async function getNCAAWomensSports(query) {
+  if (!NCAA_WOMENS_MCP_URL) {
+    return { error: "NCAA Women's Sports not configured" };
+  }
+  
+  console.log(`\n🏐 NCAA Women's Sports Request: "${query}"`);
+  console.log(`🔗 NCAA_WOMENS_MCP_URL: ${NCAA_WOMENS_MCP_URL}`);
+  
+  const lowerQuery = query.toLowerCase();
+  
+  // Detect sport
+  let sport = null;
+  if (/softball/i.test(query)) {
+    sport = "softball";
+  } else if (/volleyball|vball/i.test(query)) {
+    sport = "volleyball";
+  } else if (/soccer/i.test(query)) {
+    sport = "soccer";
+  } else if (/women'?s basketball|lady sooners|womens hoops/i.test(query)) {
+    sport = "womens_basketball";
+  }
+  
+  if (!sport) {
+    return { error: "Please specify which women's sport: softball, volleyball, soccer, or women's basketball" };
+  }
+  
+  // Determine which tool to use
+  let toolName = null;
+  let args = {};
+  
+  // Scores
+  if (/score|game|result|final/i.test(query)) {
+    toolName = `get_${sport}_scores`;
+    // Extract date if mentioned
+    const dateMatch = query.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+    if (dateMatch) {
+      args.date = dateMatch[0];
+    }
+  }
+  // Schedule
+  else if (/schedule|upcoming|next game|when|calendar/i.test(query)) {
+    toolName = `get_${sport}_schedule`;
+    // Extract year and month
+    const yearMatch = query.match(/\b(20\d{2})\b/);
+    const monthMatch = query.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2})\b/i);
+    
+    if (yearMatch) {
+      args.year = yearMatch[1];
+      
+      if (monthMatch) {
+        const monthMap = {
+          'january': '01', 'february': '02', 'march': '03', 'april': '04',
+          'may': '05', 'june': '06', 'july': '07', 'august': '08',
+          'september': '09', 'october': '10', 'november': '11', 'december': '12'
+        };
+        const monthStr = monthMatch[1].toLowerCase();
+        args.month = monthMap[monthStr] || monthStr.padStart(2, '0');
+      } else {
+        // Default to current month
+        args.month = String(new Date().getMonth() + 1).padStart(2, '0');
+      }
+    } else {
+      // Default to current year and month
+      args.year = String(new Date().getFullYear());
+      args.month = String(new Date().getMonth() + 1).padStart(2, '0');
+    }
+  }
+  // Rankings
+  else if (/ranking|ranked|poll|top 25/i.test(query)) {
+    toolName = `get_${sport}_rankings`;
+  }
+  // Stats
+  else if (/stats|statistics|performance|numbers/i.test(query)) {
+    toolName = `get_${sport}_stats`;
+  }
+  // Standings
+  else if (/standing|conference|record/i.test(query)) {
+    toolName = `get_${sport}_standings`;
+  }
+  // Default to scores
+  else {
+    toolName = `get_${sport}_scores`;
+  }
+  
+  console.log(`🔧 Using NCAA Women's tool: ${toolName}`, args);
+  
+  const payload = { name: toolName, arguments: args };
+  const result = await fetchJson(NCAA_WOMENS_MCP_URL, payload, 7000, "tools/call");
+  
+  console.log(`📊 NCAA Women's Result - ok: ${result.ok}, status: ${result.status}`);
+  
+  if (result.ok && !result.json?.error) {
+    const responseText = extractMcpText(result.json) || result.text || "";
+    console.log(`✅ NCAA Women's Response:`, responseText.substring(0, 200));
+    return { data: responseText };
+  } else {
+    const errorMsg = result.json?.error?.message || result.text || "NCAA Women's Sports request failed";
+    console.error(`❌ NCAA Women's Error:`, errorMsg);
+    return { error: errorMsg };
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*                      OPENAI FUNCTION TOOLS                         */
 /* ------------------------------------------------------------------ */
@@ -495,6 +598,23 @@ const tools = [
         required: ["query"]
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_ncaa_womens_sports",
+      description: "Get NCAA WOMEN'S SPORTS data for softball, volleyball, soccer, and women's basketball. Use for ANY women's sports queries including scores, schedules, rankings, stats, and standings. Keywords: 'softball', 'volleyball', 'soccer', 'women's basketball', 'lady sooners', 'womens', 'patty gasso'.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "The women's sports query (e.g., 'OU softball score', 'volleyball schedule', 'women's basketball rankings', 'soccer standings')"
+          }
+        },
+        required: ["query"]
+      }
+    }
   }
 ];
 
@@ -521,6 +641,7 @@ const VIDEO_AGENT_URL = (process.env.VIDEO_AGENT_URL || "").replace(/\/+$/, "");
 const ESPN_MCP_URL = (process.env.ESPN_MCP_URL || "").replace(/\/+$/, "");
 const CFBD_MCP_URL = (process.env.CFBD_MCP_URL || "").replace(/\/+$/, "");
 const CFBD_BASKETBALL_MCP_URL = (process.env.CFBD_BASKETBALL_MCP_URL || "").replace(/\/+$/, "");
+const NCAA_WOMENS_MCP_URL = (process.env.NCAA_WOMENS_MCP_URL || "").replace(/\/+$/, "");
 
 const openai = new OpenAI({
   apiKey: (process.env.OPENAI_API_KEY || "").trim().replace(/\s+/g, '')
@@ -531,6 +652,7 @@ console.log("  VIDEO_AGENT_URL:", VIDEO_AGENT_URL || "(not set)");
 console.log("  ESPN_MCP_URL:", ESPN_MCP_URL || "(not set)");
 console.log("  CFBD_MCP_URL:", CFBD_MCP_URL || "(not set)");
 console.log("  CFBD_BASKETBALL_MCP_URL:", CFBD_BASKETBALL_MCP_URL || "(not set)");
+console.log("  NCAA_WOMENS_MCP_URL:", NCAA_WOMENS_MCP_URL || "(not set)");
 console.log("  MCP_API_KEY:", process.env.MCP_API_KEY ? "✅ Set" : "❌ Not set");
 console.log("  OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "✅ Set" : "❌ Not set");
 
@@ -1146,6 +1268,7 @@ IMPORTANT TOOL USAGE RULES:
 - get_espn_stats: For CURRENT/RECENT games (today, this week, latest score)
 - get_cfbd_history: For FOOTBALL all-time records, historical matchups, "vs", series records, AND PLAYER SEASON STATS
 - get_cfbd_basketball: For ANY BASKETBALL queries (scores, stats, schedule, rankings, roster)
+- get_ncaa_womens_sports: For WOMEN'S SPORTS (softball, volleyball, soccer, women's basketball)
 
 When tools return errors, acknowledge the issue and provide what information you can from your general knowledge about OU sports.
 
@@ -1156,6 +1279,10 @@ Common queries:
 - "basketball score" → use get_cfbd_basketball
 - "Sam Godwin stats" → use get_cfbd_basketball
 - "OU hoops schedule" → use get_cfbd_basketball
+- "softball score" → use get_ncaa_womens_sports
+- "volleyball schedule" → use get_ncaa_womens_sports
+- "women's basketball rankings" → use get_ncaa_womens_sports
+- "soccer standings" → use get_ncaa_womens_sports
 - "history" (alone) → ask what kind of history they want
 - "trivia" → use get_trivia_question
 - "show me highlights" → use search_videos
@@ -1224,6 +1351,14 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
             }
             break;
           
+          case "get_ncaa_womens_sports":
+            console.log(`🏐 NCAA Women's Sports for: "${functionArgs.query}"`);
+            functionResult = await getNCAAWomensSports(functionArgs.query);
+            if (functionResult.error) {
+              functionResult.userMessage = "I'm having trouble accessing women's sports data right now. The NCAA women's sports service might be down or the query format needs adjustment.";
+            }
+            break;
+          
           default:
             functionResult = { error: "Unknown function" };
         }
@@ -1268,5 +1403,4 @@ console.log("🚪 Binding to PORT:", PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
-
 
