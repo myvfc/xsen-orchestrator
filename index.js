@@ -1,3 +1,4 @@
+
 import express from "express";
 import cors from "cors";
 import fs from "fs";
@@ -21,7 +22,8 @@ app.get("/", (req, res) => {
     videoEnabled: Boolean(VIDEO_AGENT_URL),
     espnEnabled: Boolean(ESPN_MCP_URL),
     cfbdEnabled: Boolean(CFBD_MCP_URL),
-    ncaaWomensEnabled: Boolean(NCAA_WOMENS_MCP_URL)
+    ncaaWomensEnabled: Boolean(NCAA_WOMENS_MCP_URL),
+    gymnasticsEnabled: Boolean(GYMNASTICS_MCP_URL)
   });
 });
 
@@ -514,6 +516,74 @@ async function getNCAAWomensSports(query) {
   }
 }
 
+async function getGymnastics(query) {
+  if (!GYMNASTICS_MCP_URL) {
+    return { error: "Gymnastics not configured" };
+  }
+  
+  console.log(`\n🤸 Gymnastics Request: "${query}"`);
+  console.log(`🔗 GYMNASTICS_MCP_URL: ${GYMNASTICS_MCP_URL}`);
+  
+  const lowerQuery = query.toLowerCase();
+  
+  // Detect gender - default to women's if not specified
+  const isMens = /\bmen'?s\b|\bmale\b/i.test(query);
+  const gender = isMens ? "mens" : "womens";
+  
+  console.log(`🎯 Detected gender: ${gender}`);
+  
+  // Determine which tool to use
+  let toolName = null;
+  let args = { year: "2025" };
+  
+  // Scores/Results
+  if (/score|result|meet|final/i.test(query)) {
+    toolName = `get_${gender}_gymnastics_scores`;
+  }
+  // Schedule
+  else if (/schedule|upcoming|next meet|when/i.test(query)) {
+    toolName = `get_${gender}_gymnastics_schedule`;
+    // Extract date if specified
+    const dateMatch = query.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+    if (dateMatch) {
+      args.date = dateMatch[0];
+    }
+  }
+  // Rankings
+  else if (/ranking|ranked|poll|where|position/i.test(query)) {
+    toolName = `get_${gender}_gymnastics_rankings`;
+  }
+  // Roster
+  else if (/roster|gymnasts|team|who'?s on|athletes/i.test(query)) {
+    toolName = `get_${gender}_gymnastics_roster`;
+  }
+  // Team Info (complete dashboard)
+  else if (/team info|dashboard|everything|complete|full|all info/i.test(query)) {
+    toolName = `get_${gender}_gymnastics_team_info`;
+  }
+  // Default to rankings (most common query)
+  else {
+    toolName = `get_${gender}_gymnastics_rankings`;
+  }
+  
+  console.log(`🔧 Using Gymnastics tool: ${toolName}`, args);
+  
+  const payload = { name: toolName, arguments: args };
+  const result = await fetchJson(GYMNASTICS_MCP_URL, payload, 7000, "tools/call");
+  
+  console.log(`📊 Gymnastics Result - ok: ${result.ok}, status: ${result.status}`);
+  
+  if (result.ok && !result.json?.error) {
+    const responseText = extractMcpText(result.json) || result.text || "";
+    console.log(`✅ Gymnastics Response:`, responseText.substring(0, 200));
+    return { data: responseText };
+  } else {
+    const errorMsg = result.json?.error?.message || result.text || "Gymnastics request failed";
+    console.error(`❌ Gymnastics Error:`, errorMsg);
+    return { error: errorMsg };
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*                      OPENAI FUNCTION TOOLS                         */
 /* ------------------------------------------------------------------ */
@@ -615,6 +685,23 @@ const tools = [
         required: ["query"]
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_gymnastics",
+      description: "Get GYMNASTICS data for both men's and women's programs. Use for ANY gymnastics-related queries including scores, schedules, rankings, rosters, and team info. BOTH OU teams are currently ranked #1! Keywords: 'gymnastics', 'gymnast', 'vault', 'bars', 'beam', 'floor', 'pommel horse', 'rings', 'parallel bars', 'high bar', 'meet'.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "The gymnastics query (e.g., 'OU gymnastics rankings', 'women's gymnastics score', 'men's gymnastics roster', 'gymnastics schedule')"
+          }
+        },
+        required: ["query"]
+      }
+    }
   }
 ];
 
@@ -642,6 +729,7 @@ const ESPN_MCP_URL = (process.env.ESPN_MCP_URL || "").replace(/\/+$/, "");
 const CFBD_MCP_URL = (process.env.CFBD_MCP_URL || "").replace(/\/+$/, "");
 const CFBD_BASKETBALL_MCP_URL = (process.env.CFBD_BASKETBALL_MCP_URL || "").replace(/\/+$/, "");
 const NCAA_WOMENS_MCP_URL = (process.env.NCAA_WOMENS_MCP_URL || "").replace(/\/+$/, "");
+const GYMNASTICS_MCP_URL = (process.env.GYMNASTICS_MCP_URL || "").replace(/\/+$/, "");
 
 const openai = new OpenAI({
   apiKey: (process.env.OPENAI_API_KEY || "").trim().replace(/\s+/g, '')
@@ -653,6 +741,7 @@ console.log("  ESPN_MCP_URL:", ESPN_MCP_URL || "(not set)");
 console.log("  CFBD_MCP_URL:", CFBD_MCP_URL || "(not set)");
 console.log("  CFBD_BASKETBALL_MCP_URL:", CFBD_BASKETBALL_MCP_URL || "(not set)");
 console.log("  NCAA_WOMENS_MCP_URL:", NCAA_WOMENS_MCP_URL || "(not set)");
+console.log("  GYMNASTICS_MCP_URL:", GYMNASTICS_MCP_URL || "(not set)");
 console.log("  MCP_API_KEY:", process.env.MCP_API_KEY ? "✅ Set" : "❌ Not set");
 console.log("  OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "✅ Set" : "❌ Not set");
 
@@ -1269,6 +1358,7 @@ IMPORTANT TOOL USAGE RULES:
 - get_cfbd_history: For FOOTBALL all-time records, historical matchups, "vs", series records, AND PLAYER SEASON STATS
 - get_cfbd_basketball: For ANY BASKETBALL queries (scores, stats, schedule, rankings, roster)
 - get_ncaa_womens_sports: For WOMEN'S SPORTS (softball, volleyball, soccer, women's basketball)
+- get_gymnastics: For GYMNASTICS queries (both men's and women's) - BOTH OU TEAMS ARE #1!
 
 When tools return errors, acknowledge the issue and provide what information you can from your general knowledge about OU sports.
 
@@ -1283,9 +1373,14 @@ Common queries:
 - "volleyball schedule" → use get_ncaa_womens_sports
 - "women's basketball rankings" → use get_ncaa_womens_sports
 - "soccer standings" → use get_ncaa_womens_sports
+- "gymnastics rankings" → use get_gymnastics (BOTH teams #1!)
+- "women's gymnastics score" → use get_gymnastics
+- "men's gymnastics roster" → use get_gymnastics
 - "history" (alone) → ask what kind of history they want
 - "trivia" → use get_trivia_question
 - "show me highlights" → use search_videos
+
+GYMNASTICS FUN FACT: Both OU men's and women's gymnastics teams are currently ranked #1 in the nation! This is incredibly rare and worth celebrating!
 
 Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
       },
@@ -1359,6 +1454,14 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
             }
             break;
           
+          case "get_gymnastics":
+            console.log(`🤸 Gymnastics for: "${functionArgs.query}"`);
+            functionResult = await getGymnastics(functionArgs.query);
+            if (functionResult.error) {
+              functionResult.userMessage = "I'm having trouble accessing gymnastics data right now. The gymnastics service might be down or the query format needs adjustment.";
+            }
+            break;
+          
           default:
             functionResult = { error: "Unknown function" };
         }
@@ -1403,4 +1506,3 @@ console.log("🚪 Binding to PORT:", PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
-
