@@ -1359,6 +1359,8 @@ IMPORTANT TOOL USAGE RULES:
 - get_ncaa_womens_sports: For WOMEN'S SPORTS (softball, volleyball, soccer, women's basketball)
 - get_gymnastics: For GYMNASTICS queries (both men's and women's) - BOTH OU TEAMS ARE #1!
 
+IMPORTANT GYMNASTICS NOTE: Women's gymnastics has individual event rankings (vault, bars, beam, floor). Men's gymnastics only has OVERALL TEAM rankings - do not make up individual event rankings for men's gymnastics.
+
 When tools return errors, acknowledge the issue and provide what information you can from your general knowledge about OU sports.
 
 Common queries:
