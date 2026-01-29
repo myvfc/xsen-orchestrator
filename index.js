@@ -3,6 +3,7 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import OpenAI from "openai";
 import { detectSchool, parseSport, parseToolName, fetchSchoolData } from "./schools.js";
 
 console.log("MCP KEY PRESENT:", !!process.env.MCP_API_KEY);
@@ -120,8 +121,6 @@ async function getESPNStats(query) {
   // Determine which ESPN tool to use
   if (/player stats|individual stats|who scored|leading scorer/i.test(query)) {
     toolName = "get_game_player_stats";
-    // Need eventId - this is tricky, might need to get score first then get player stats
-    // For now, return error suggesting they ask for score first
     return { error: "For player stats, please ask for the game score first, then I can get detailed player statistics." };
   }
   else if (/schedule|upcoming|next game|when does|when do/i.test(query)) {
@@ -144,12 +143,10 @@ async function getESPNStats(query) {
   else if (/scoreboard|all games|today'?s games|games today/i.test(query) && !/oklahoma|ou|sooners/i.test(query)) {
     toolName = "get_scoreboard";
     args = { sport: sport };
-    // Add date if specified
     const dateMatch = query.match(/\d{8}/);
     if (dateMatch) args.date = dateMatch[0];
   }
   else {
-    // Default to get_score for OU-specific queries
     toolName = "get_score";
     args = { team: "Oklahoma", sport: sport };
   }
@@ -177,7 +174,6 @@ async function getCFBDHistory(query) {
     return { error: "CFBD history not configured" };
   }
   
-  // DEFENSIVE CHECK: Reject basketball queries
   if (/basketball|hoops|bball|court|sam godwin|jalon moore|javian mcollum/i.test(query)) {
     console.log(`⚠️ BASKETBALL query detected in football function, redirecting...`);
     return { error: "This appears to be a basketball query. Please use the basketball tool instead." };
@@ -188,27 +184,24 @@ async function getCFBDHistory(query) {
   
   const lowerQuery = query.toLowerCase();
   
-  // Extract year from query if mentioned
   let year = null;
-  const yearMatch = query.match(/\b(19\d{2}|20\d{2})\b/); // Matches 1900-2099
+  const yearMatch = query.match(/\b(19\d{2}|20\d{2})\b/);
   if (yearMatch) {
     year = parseInt(yearMatch[1]);
     console.log(`📅 Extracted year from query: ${year}`);
   } else {
-    year = new Date().getFullYear() - 1; // Default to last completed season
+    year = new Date().getFullYear() - 1;
     console.log(`📅 Using default year: ${year}`);
   }
   
-  let toolName = "get_team_records"; // default
+  let toolName = "get_team_records";
   let args = { team: "Oklahoma" };
   
-  // Game-by-game stats - CHECK FIRST before matchup check!
   if (/game[- ]?by[- ]?game|each game|every game/i.test(query) || 
       (/game stats/i.test(query) && /\bvs\.?\b|\bagainst\b/i.test(query))) {
     toolName = "get_game_stats";
     args = { team: "Oklahoma", year: year };
     
-    // Extract opponent if asking about specific game
     if (/\bvs\.?\b|\bagainst\b/i.test(query)) {
       let opponent = query
         .toLowerCase()
@@ -217,7 +210,6 @@ async function getCFBDHistory(query) {
         .replace(/\b(19\d{2}|20\d{2})\b/gi, "")
         .trim();
       
-      // Common team name mappings
       if (/texas/i.test(opponent) && !/tech|state/i.test(opponent)) opponent = "Texas";
       else if (/nebraska/i.test(opponent)) opponent = "Nebraska";
       else if (/alabama|bama/i.test(opponent)) opponent = "Alabama";
@@ -228,25 +220,22 @@ async function getCFBDHistory(query) {
       }
     }
   }
-  // Detect matchup queries (vs, against, etc.) - but NOT if asking for game stats
   else if (/\bvs\.?\b|\bagainst\b|\bversus\b|head[- ]?to[- ]?head/i.test(query)) {
     toolName = "get_team_matchup";
-    // Extract opponent
     let opponent = query
       .toLowerCase()
       .replace(/\b(oklahoma|sooners|ou)\b/gi, "")
       .replace(/\b(vs\.?|against|versus|all[- ]time|record|history|head[- ]?to[- ]?head)\b/gi, "")
       .replace(/\b(football|basketball|game)\b/gi, "")
-      .replace(/\b(19\d{2}|20\d{2})\b/gi, "") // Remove year
+      .replace(/\b(19\d{2}|20\d{2})\b/gi, "")
       .trim();
     
-    // Common team name mappings
     if (/texas/i.test(opponent) && !/tech|state/i.test(opponent)) opponent = "Texas";
     else if (/nebraska/i.test(opponent)) opponent = "Nebraska";
     else if (/alabama|bama/i.test(opponent)) opponent = "Alabama";
     else if (/oklahoma state|osu|cowboys|pokes/i.test(opponent)) opponent = "Oklahoma State";
     else if (/kansas/i.test(opponent) && !/state/i.test(opponent)) opponent = "Kansas";
-    else if (!opponent) opponent = "Texas"; // default if we can't parse
+    else if (!opponent) opponent = "Texas";
     
     args = {
       team1: "Oklahoma",
@@ -254,61 +243,50 @@ async function getCFBDHistory(query) {
       minYear: 1900
     };
   }
-  // Play-by-play for specific game
   else if (/play[- ]?by[- ]?play|plays|scoring|drive/i.test(query)) {
     toolName = "get_play_by_play";
     return { error: "For play-by-play, please ask for the game score first, then I can get detailed play information." };
   }
-  // Player stats - detect "player stats" OR "Name Name stats" patterns
   else if (
     /player stats|individual stats|who led|leading|top player/i.test(query) ||
     (/\b[A-Z][a-z]+\s+[A-Z][a-z]+.*stats/i.test(query) && !/team stats|season stats/i.test(query))
   ) {
     toolName = "get_player_stats";
-    args = { team: "Oklahoma", year: year, query: query }; // Pass query so CFBD can extract player name
+    args = { team: "Oklahoma", year: year, query: query };
   }
-  // Team season stats
   else if (/team stats|season stats|total yards|total touchdowns|offensive stats|defensive stats/i.test(query)) {
     toolName = "get_team_stats";
     args = { team: "Oklahoma", year: year };
   }
-  // Conference standings
   else if (/standings?|conference|big 12|sec/i.test(query)) {
     toolName = "get_conference_standings";
     const conference = /sec/i.test(query) ? "SEC" : "Big 12";
     args = { conference: conference, year: year };
   }
-  // Recruiting query
   else if (/recruit/i.test(query)) {
     toolName = "get_recruiting";
     args = { team: "Oklahoma", year: year };
   }
-  // Talent/composite ranking
   else if (/talent|composite/i.test(query)) {
     toolName = "get_team_talent";
     args = { team: "Oklahoma", year: year };
   }
-  // Rankings (AP, Coaches, CFP) - FIXED to use extracted year
   else if (/ranking|poll|ap|coaches|playoff ranking|final ranking/i.test(query)) {
     toolName = "get_team_rankings";
     args = { team: "Oklahoma", year: year };
   }
-  // Schedule
   else if (/schedule|upcoming|next game|remaining games/i.test(query)) {
     toolName = "get_schedule";
     args = { team: "Oklahoma", year: year };
   }
-  // Returning production
   else if (/returning|production|who'?s back|veterans/i.test(query)) {
     toolName = "get_returning_production";
     args = { team: "Oklahoma", year: year };
   }
-  // Venue/stadium info
   else if (/stadium|venue|gaylord|memorial stadium|where do they play/i.test(query)) {
     toolName = "get_venue_info";
     args = { team: "Oklahoma" };
   }
-  // Default to team records for general history
   else {
     toolName = "get_team_records";
     args = { team: "Oklahoma", startYear: 2020, endYear: year };
@@ -342,26 +320,23 @@ async function getCFBDBasketball(query) {
   
   const lowerQuery = query.toLowerCase();
   
-  // Extract year from query if mentioned
   let year = null;
   const yearMatch = query.match(/\b(19\d{2}|20\d{2})\b/);
   if (yearMatch) {
     year = parseInt(yearMatch[1]);
     console.log(`📅 Extracted year from query: ${year}`);
   } else {
-    year = new Date().getFullYear(); // Basketball season is current year
+    year = new Date().getFullYear();
     console.log(`📅 Using default year: ${year}`);
   }
   
-  let toolName = "get_basketball_score"; // default
+  let toolName = "get_basketball_score";
   let args = { team: "Oklahoma", year: year };
   
-  // Shooting stats - CHECK FIRST before player stats!
   if (/shooting|3pt|three point|fg%|field goal|free throw|ft%/i.test(query)) {
     toolName = "get_basketball_shooting_stats";
     args = { team: "Oklahoma", year: year, query: query };
   }
-  // Player stats - detect "player stats" OR "Name Name stats" patterns
   else if (
     /player stats|individual stats|who led|leading|top scorer/i.test(query) ||
     (/\b[A-Z][a-z]+\s+[A-Z][a-z]+.*stats/i.test(query) && !/team stats|season stats/i.test(query))
@@ -369,27 +344,18 @@ async function getCFBDBasketball(query) {
     toolName = "get_basketball_player_stats";
     args = { team: "Oklahoma", year: year, query: query };
   }
-  // Team stats
   else if (/team stats|season stats/i.test(query)) {
     toolName = "get_basketball_team_stats";
     args = { team: "Oklahoma", year: year };
   }
-  // Schedule
   else if (/schedule|upcoming|next game|remaining games/i.test(query)) {
     toolName = "get_basketball_schedule";
     args = { team: "Oklahoma", year: year };
   }
-  // Rankings
   else if (/ranking|poll|ap|coaches/i.test(query)) {
     toolName = "get_basketball_rankings";
     args = { team: "Oklahoma", year: year };
   }
-  // Shooting stats
-  else if (/shooting|3pt|three point|fg%|field goal|free throw|ft%/i.test(query)) {
-    toolName = "get_basketball_shooting_stats";
-    args = { team: "Oklahoma", year: year, query: query };
-  }
-  // Roster
   else if (/roster|players|team list/i.test(query)) {
     toolName = "get_basketball_roster";
     args = { team: "Oklahoma", year: year };
@@ -423,7 +389,6 @@ async function getNCAAWomensSports(query) {
   
   const lowerQuery = query.toLowerCase();
   
-  // Detect sport
   let sport = null;
   if (/softball/i.test(query)) {
     sport = "softball";
@@ -439,23 +404,18 @@ async function getNCAAWomensSports(query) {
     return { error: "Please specify which women's sport: softball, volleyball, soccer, or women's basketball" };
   }
   
-  // Determine which tool to use
   let toolName = null;
   let args = {};
   
-  // Scores
   if (/score|game|result|final/i.test(query)) {
     toolName = `get_${sport}_scores`;
-    // Extract date if mentioned
     const dateMatch = query.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
     if (dateMatch) {
       args.date = dateMatch[0];
     }
   }
-  // Schedule
   else if (/schedule|upcoming|next game|when|calendar/i.test(query)) {
     toolName = `get_${sport}_schedule`;
-    // Extract year and month
     const yearMatch = query.match(/\b(20\d{2})\b/);
     const monthMatch = query.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2})\b/i);
     
@@ -471,28 +431,22 @@ async function getNCAAWomensSports(query) {
         const monthStr = monthMatch[1].toLowerCase();
         args.month = monthMap[monthStr] || monthStr.padStart(2, '0');
       } else {
-        // Default to current month
         args.month = String(new Date().getMonth() + 1).padStart(2, '0');
       }
     } else {
-      // Default to current year and month
       args.year = String(new Date().getFullYear());
       args.month = String(new Date().getMonth() + 1).padStart(2, '0');
     }
   }
-  // Rankings
   else if (/ranking|ranked|poll|top 25/i.test(query)) {
     toolName = `get_${sport}_rankings`;
   }
-  // Stats
   else if (/stats|statistics|performance|numbers/i.test(query)) {
     toolName = `get_${sport}_stats`;
   }
-  // Standings
   else if (/standing|conference|record/i.test(query)) {
     toolName = `get_${sport}_standings`;
   }
-  // Default to scores
   else {
     toolName = `get_${sport}_scores`;
   }
@@ -519,111 +473,39 @@ async function getGymnastics(query) {
   if (!GYMNASTICS_MCP_URL) {
     return { error: "Gymnastics not configured" };
   }
-  async function getSchoolAthletics(query) {
-  console.log(`\n🏫 School Athletics Request: "${query}"`);
-  
-  // Detect which school is being asked about
-  const school = detectSchool(query);
-  
-  if (!school) {
-    return { error: "Could not determine which school you're asking about" };
-  }
-  
-  // If it's OU, return message to use existing tools
-  if (school.usesExistingTools) {
-    return { 
-      error: "For Oklahoma Sooners, please use the specific ESPN, CFBD, NCAA, or Gymnastics tools instead.",
-      school: school.displayName
-    };
-  }
-  
-  // Determine which tool to call
-  const toolName = parseToolName(query);
-  const sport = parseSport(query);
-  
-  console.log(`🎯 School: ${school.displayName}, Tool: ${toolName}, Sport: ${sport}`);
-  
-  // Prepare arguments based on tool
-  let args = { sport: sport };
-  
-  // For search_player, extract search term
-  if (toolName === "search_player") {
-    const searchTerm = query
-      .toLowerCase()
-      .replace(new RegExp(school.keywords.join("|"), "gi"), "")
-      .replace(/\b(find|search|who is|player|roster)\b/gi, "")
-      .trim();
-    args = { sport: sport, searchTerm: searchTerm };
-  }
-  
-  // For get_news, set limit
-  if (toolName === "get_news") {
-    args.limit = 5;
-  }
-  
-  // Fetch data from school's MCP server
-  return await fetchSchoolData(school, toolName, args, fetchJson, extractMcpText);
-}
-
-/* ------------------------------------------------------------------ */
-/*                      OPENAI FUNCTION TOOLS                         */
-/* ------------------------------------------------------------------ */
-```
-
-**So the complete section looks like:**
-```
-getGymnastics function ending...
-}
-
-async function getSchoolAthletics(query) {
-  ... new function here ...
-}
-
-/* ------------------------------------------------------------------ */
-/*                      OPENAI FUNCTION TOOLS                         */
-/* ------------------------------------------------------------------ */
   
   console.log(`\n🤸 Gymnastics Request: "${query}"`);
   console.log(`🔗 GYMNASTICS_MCP_URL: ${GYMNASTICS_MCP_URL}`);
   
   const lowerQuery = query.toLowerCase();
   
-  // Detect gender - default to women's if not specified
   const isMens = /\bmen'?s\b|\bmale\b/i.test(query);
   const gender = isMens ? "mens" : "womens";
   
   console.log(`🎯 Detected gender: ${gender}`);
   
-  // Determine which tool to use
   let toolName = null;
   let args = { year: "2025" };
   
-  // Scores/Results
   if (/score|result|meet|final/i.test(query)) {
     toolName = `get_${gender}_gymnastics_scores`;
   }
-  // Schedule
   else if (/schedule|upcoming|next meet|when/i.test(query)) {
     toolName = `get_${gender}_gymnastics_schedule`;
-    // Extract date if specified
     const dateMatch = query.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
     if (dateMatch) {
       args.date = dateMatch[0];
     }
   }
-  // Rankings
   else if (/ranking|ranked|poll|where|position/i.test(query)) {
     toolName = `get_${gender}_gymnastics_rankings`;
   }
-  // Roster
   else if (/roster|gymnasts|team|who'?s on|athletes/i.test(query)) {
     toolName = `get_${gender}_gymnastics_roster`;
   }
-  // Team Info (complete dashboard)
   else if (/team info|dashboard|everything|complete|full|all info/i.test(query)) {
     toolName = `get_${gender}_gymnastics_team_info`;
   }
-  // Default to rankings (most common query)
   else {
     toolName = `get_${gender}_gymnastics_rankings`;
   }
@@ -644,6 +526,45 @@ async function getSchoolAthletics(query) {
     console.error(`❌ Gymnastics Error:`, errorMsg);
     return { error: errorMsg };
   }
+}
+
+async function getSchoolAthletics(query) {
+  console.log(`\n🏫 School Athletics Request: "${query}"`);
+  
+  const school = detectSchool(query);
+  
+  if (!school) {
+    return { error: "Could not determine which school you're asking about" };
+  }
+  
+  if (school.usesExistingTools) {
+    return { 
+      error: "For Oklahoma Sooners, please use the specific ESPN, CFBD, NCAA, or Gymnastics tools instead.",
+      school: school.displayName
+    };
+  }
+  
+  const toolName = parseToolName(query);
+  const sport = parseSport(query);
+  
+  console.log(`🎯 School: ${school.displayName}, Tool: ${toolName}, Sport: ${sport}`);
+  
+  let args = { sport: sport };
+  
+  if (toolName === "search_player") {
+    const searchTerm = query
+      .toLowerCase()
+      .replace(new RegExp(school.keywords.join("|"), "gi"), "")
+      .replace(/\b(find|search|who is|player|roster)\b/gi, "")
+      .trim();
+    args = { sport: sport, searchTerm: searchTerm };
+  }
+  
+  if (toolName === "get_news") {
+    args.limit = 5;
+  }
+  
+  return await fetchSchoolData(school, toolName, args, fetchJson, extractMcpText);
 }
 
 /* ------------------------------------------------------------------ */
@@ -764,6 +685,23 @@ const tools = [
         required: ["query"]
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_school_athletics",
+      description: "Get athletics data for D2/D3 schools like NMHU (New Mexico Highlands) and WTAMU (West Texas A&M). Use when user asks about these schools. Keywords: 'nmhu', 'highlands', 'new mexico highlands', 'wtamu', 'west texas', 'buffs'.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "The query about the school (e.g., 'NMHU softball roster', 'West Texas A&M football schedule')"
+          }
+        },
+        required: ["query"]
+      }
+    }
   }
 ];
 
@@ -868,7 +806,6 @@ function buildMCQ(q) {
   const correct = sanitize(q?.answer);
   const correctNorm = normalizeAnswer(correct);
 
-  // ALWAYS use wrongAnswers if they exist
   if (Array.isArray(q?.wrongAnswers) && q.wrongAnswers.length >= 3) {
     const wrongAnswers = q.wrongAnswers.slice(0, 3).map(a => sanitize(a));
     const options = shuffle([correct, ...wrongAnswers]);
@@ -881,7 +818,6 @@ function buildMCQ(q) {
     };
   }
 
-  // Otherwise, generate wrong answers from other trivia questions
   const allOtherAnswers = TRIVIA
     .map(t => sanitize(t?.answer))
     .filter(a => a && normalizeAnswer(a) !== correctNorm);
@@ -960,10 +896,8 @@ function isESPNStatsRequest(text = "") {
 function isCFBDHistoryRequest(text = "") {
   const lowerText = text.toLowerCase().trim();
   
-  // If the ENTIRE query is just "history", treat it as a history request
   if (lowerText === "history") return true;
   
-  // Check for specific history patterns - prioritize vs/matchup queries
   if (/\bvs\.?\b|\bagainst\b|\bversus\b/i.test(text)) return true;
   
   return /\b(all[- ]time|historical|record in|season|since|bowl|championship|national title|conference title|series|head to head|coaches|heisman|recruiting|talent|matchup)\b/i.test(
@@ -980,7 +914,6 @@ async function fetchJson(url, payload, timeoutMs = 7000, method = "tools/call") 
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    // Ensure URL ends with /mcp for MCP servers
     if (!url.endsWith('/mcp')) {
       url = url.replace(/\/$/, '') + '/mcp';
     }
@@ -1093,17 +1026,14 @@ async function callMcp(baseUrl, userText) {
   if (tools.length > 0) {
     const toolNames = tools.map(t => t.name);
     
-    // For score queries, prefer get_score tool
     if (/score|game|final|result/i.test(userText)) {
       toolName = toolNames.find(name => name === "get_score") || toolName;
     }
     
-    // For CFBD history queries, use appropriate tool
     if (baseUrl.includes("cfbd")) {
       const lowerText = userText.toLowerCase();
       
       if (lowerText === "history" || /what happened|tell me about|recent history/i.test(userText)) {
-        // Generic history - use team records
         toolName = toolNames.find(name => name === "get_team_records") || toolName;
       } else if (/matchup|vs\.?|head to head|against/i.test(userText)) {
         toolName = toolNames.find(name => name === "get_team_matchup") || toolName;
@@ -1118,7 +1048,6 @@ async function callMcp(baseUrl, userText) {
       }
     }
     
-    // Otherwise look for general query tools
     if (toolName === "query") {
       toolName = toolNames.find(name => 
         /query|search|get|fetch|ask/i.test(name)
@@ -1130,16 +1059,13 @@ async function callMcp(baseUrl, userText) {
     console.log(`⚠️ No tools found, using default: ${toolName}`);
   }
 
-  // Extract team name and detect sport
   let teamName = userText;
   let sport = null;
   
   if (toolName === "get_score") {
-    // Detect gender-specific queries
     const isMens = /\bmen'?s\b|\bmale\b/i.test(userText);
     const isWomens = /\bwomen'?s\b|\bfemale\b|\blady\b|\bladies\b/i.test(userText);
     
-    // Extract team name - look for common patterns
     teamName = userText
       .toLowerCase()
       .replace(/\b(score|game|final|result|what's|whats|get|show|tell me)\b/gi, "")
@@ -1148,10 +1074,8 @@ async function callMcp(baseUrl, userText) {
       .replace(/\bsooners\b/gi, "oklahoma")
       .trim();
     
-    // Detect sport from query
     if (/basketball|hoops|bball/i.test(userText)) {
       sport = "basketball";
-      // ESPN typically uses "mens-basketball" and "womens-basketball"
       if (isMens) sport = "mens-basketball";
       if (isWomens) sport = "womens-basketball";
     } else if (/baseball/i.test(userText)) {
@@ -1187,26 +1111,21 @@ async function callMcp(baseUrl, userText) {
       if (isMens) sport = "mens-track";
       if (isWomens) sport = "womens-track";
     }
-    // If no sport specified, try multiple sports
   }
 
   const payloadVariations = [];
   
-  // For get_score, try multiple sports if not specified
   if (toolName === "get_score") {
     if (sport) {
-      // Specific sport requested - try multiple team name variations
       const teamVariations = [teamName, "Oklahoma Sooners", "Oklahoma", "OU"];
       teamVariations.forEach(team => {
         payloadVariations.push({ name: toolName, arguments: { team: team, sport: sport } });
-        // Also try without the "mens-" or "womens-" prefix
         if (sport.includes("-")) {
           const baseSport = sport.split("-")[1];
           payloadVariations.push({ name: toolName, arguments: { team: team, sport: baseSport } });
         }
       });
     } else {
-      // Try all major OU sports with different team name formats
       const teamVariations = ["Oklahoma", "Oklahoma Sooners", "OU"];
       const sports = [
         "mens-basketball", "basketball",
@@ -1224,7 +1143,6 @@ async function callMcp(baseUrl, userText) {
         "womens-tennis"
       ];
       
-      // Try Oklahoma first, then other variations
       teamVariations.forEach(team => {
         sports.forEach(s => {
           payloadVariations.push({ name: toolName, arguments: { team: team, sport: s } });
@@ -1233,7 +1151,6 @@ async function callMcp(baseUrl, userText) {
     }
   }
   
-  // For CFBD history tools, use Oklahoma as default team
   if (baseUrl.includes("cfbd")) {
     const teamVariations = ["Oklahoma", "oklahoma", "Oklahoma Sooners", "OU"];
     
@@ -1249,7 +1166,6 @@ async function callMcp(baseUrl, userText) {
         });
       });
     } else if (toolName === "get_team_matchup") {
-      // Extract opponent from query
       const opponent = userText
         .toLowerCase()
         .replace(/\b(oklahoma|sooners|ou)\b/gi, "")
@@ -1285,7 +1201,6 @@ async function callMcp(baseUrl, userText) {
     }
   }
   
-  // Fallback variations for other tools
   payloadVariations.push(
     { name: toolName, arguments: { team: teamName } },
     { name: toolName, arguments: { query: userText } },
@@ -1306,10 +1221,9 @@ async function callMcp(baseUrl, userText) {
     if (resp.ok && !resp.json?.error) {
       const out = extractMcpText(resp.json) || resp.text || "";
       
-      // Check if this is a "no game found" message
       if (out.includes("No recent game found")) {
         console.log(`⚠️ No game found, trying next variation...`);
-        continue; // Try next variation
+        continue;
       }
       
       if (out.trim()) {
@@ -1338,7 +1252,7 @@ async function callMcp(baseUrl, userText) {
 app.post("/tts", async (req, res) => {
   try {
     const text = req.body?.text;
-    const voice = req.body?.voice || "onyx"; // Default to Onyx (sports announcer voice)
+    const voice = req.body?.voice || "onyx";
 
     if (!text) {
       return res.status(400).json({ error: "No text provided" });
@@ -1348,7 +1262,7 @@ app.post("/tts", async (req, res) => {
 
     const mp3 = await openai.audio.speech.create({
       model: "tts-1",
-      voice: voice, // alloy, echo, fable, onyx, nova, shimmer
+      voice: voice,
       input: text,
     });
 
@@ -1390,7 +1304,6 @@ app.post("/chat", async (req, res) => {
     if (!sessions.has(sessionId)) sessions.set(sessionId, { chat: [] });
     const session = sessions.get(sessionId);
 
-    // Handle trivia answers (A, B, C, D)
     if (session.active && isAnswerChoice(rawText.toLowerCase())) {
       const idx = { a: 0, b: 1, c: 2, d: 3 }[rawText.toLowerCase()];
       const isCorrect = idx === session.correctIndex;
@@ -1403,11 +1316,9 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    // Add user message to conversation history
     session.chat.push({ role: "user", content: rawText });
-    session.chat = session.chat.slice(-10); // Keep last 10 messages
+    session.chat = session.chat.slice(-10);
 
-    // Call OpenAI with function calling
     const messages = [
       {
         role: "system",
@@ -1421,6 +1332,11 @@ IMPORTANT TOOL USAGE RULES:
 - get_cfbd_basketball: For ANY BASKETBALL queries (scores, stats, schedule, rankings, roster)
 - get_ncaa_womens_sports: For WOMEN'S SPORTS (softball, volleyball, soccer, women's basketball)
 - get_gymnastics: For GYMNASTICS queries (both men's and women's) - BOTH OU TEAMS ARE #1!
+- get_school_athletics: For D2/D3 schools like NMHU and WTAMU
+
+SUPPORTED D2/D3 SCHOOLS:
+- New Mexico Highlands (NMHU, Highlands, Cowboys)
+- West Texas A&M (WTAMU, West Texas, Buffs)
 
 IMPORTANT GYMNASTICS NOTE: Women's gymnastics has individual event rankings (vault, bars, beam, floor). Men's gymnastics only has OVERALL TEAM rankings - do not make up individual event rankings for men's gymnastics.
 
@@ -1440,6 +1356,8 @@ Common queries:
 - "gymnastics rankings" → use get_gymnastics (BOTH teams #1!)
 - "women's gymnastics score" → use get_gymnastics
 - "men's gymnastics roster" → use get_gymnastics
+- "NMHU softball roster" → use get_school_athletics
+- "West Texas A&M football schedule" → use get_school_athletics
 - "history" (alone) → ask what kind of history they want
 - "trivia" → use get_trivia_question
 - "show me highlights" → use search_videos
@@ -1460,7 +1378,6 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
 
     let assistantMessage = response.choices[0].message;
 
-    // Handle function calls
     while (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
       session.chat.push(assistantMessage);
 
@@ -1475,7 +1392,6 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
         switch (functionName) {
           case "get_trivia_question":
             functionResult = await getTriviaQuestion();
-            // Store trivia state for answer checking
             if (!functionResult.error) {
               session.active = true;
               session.correctIndex = functionResult.correctIndex;
@@ -1496,7 +1412,6 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
           case "get_cfbd_history":
             console.log(`📚 CFBD history for: "${functionArgs.query}"`);
             functionResult = await getCFBDHistory(functionArgs.query);
-            // If CFBD fails, add helpful error message
             if (functionResult.error) {
               functionResult.userMessage = "I'm having trouble accessing historical data right now. The CFBD service might be down or the query format needs adjustment.";
             }
@@ -1526,6 +1441,14 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
             }
             break;
           
+          case "get_school_athletics":
+            console.log(`🏫 School Athletics for: "${functionArgs.query}"`);
+            functionResult = await getSchoolAthletics(functionArgs.query);
+            if (functionResult.error) {
+              functionResult.userMessage = "I'm having trouble accessing that school's athletics data right now.";
+            }
+            break;
+          
           default:
             functionResult = { error: "Unknown function" };
         }
@@ -1537,7 +1460,6 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
         });
       }
 
-      // Get next response from GPT with function results
       response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: session.chat,
@@ -1548,7 +1470,6 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
       assistantMessage = response.choices[0].message;
     }
 
-    // Add final assistant response to chat history
     session.chat.push(assistantMessage);
 
     return res.json({ response: assistantMessage.content });
@@ -1570,4 +1491,3 @@ console.log("🚪 Binding to PORT:", PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
-
