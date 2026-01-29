@@ -20,16 +20,6 @@ function linkifyUrls(text) {
   // Simply remove parentheses around URLs - let the frontend auto-linkify
   return text.replace(/\((https?:\/\/[^\s\)]+)\)/g, '$1');
 }
-```
-
-**This converts:**
-```
-Hannah Hopkins - FR - Pitcher (https://www.nmhu.edu/sports/softball/roster/hannah-hopkins/7217)
-```
-
-**To:**
-```
-Hannah Hopkins - FR - Pitcher https://www.nmhu.edu/sports/softball/roster/hannah-hopkins/7217
 
 export function detectSchool(query) {
   const lowerQuery = query.toLowerCase();
@@ -65,73 +55,4 @@ export function parseSport(query) {
   if (/baseball/i.test(query)) return "baseball";
   if (/\bfootball\b|\bfb\b/i.test(query)) return "football";
   if (/women'?s basketball|lady|womens hoops/i.test(query)) return "womens-basketball";
-  if (/men'?s basketball|basketball|hoops|bball/i.test(query)) return "mens-basketball";
-  if (/volleyball|vball/i.test(query)) return "womens-volleyball";
-  if (/women'?s soccer|womens soccer/i.test(query)) return "womens-soccer";
-  if (/men'?s soccer|mens soccer/i.test(query)) return "mens-soccer";
-  if (/wrestling/i.test(query)) return "wrestling";
-  if (/gymnastics/i.test(query)) return "womens-gymnastics";
-  if (/track|cross country/i.test(query)) return "womens-track-and-field";
-  
-  return "football";
-}
-
-export function parseToolName(query) {
-  const lowerQuery = query.toLowerCase();
-  
-  if (/roster|players|team list|who'?s on/i.test(query)) {
-    return "get_roster";
-  }
-  
-  if (/schedule|upcoming|next game|when|calendar/i.test(query)) {
-    return "get_schedule";
-  }
-  
-  if (/stats|statistics|performance|numbers/i.test(query)) {
-    return "get_stats";
-  }
-  
-  if (/news|article|story|headline/i.test(query)) {
-    return "get_news";
-  }
-  
-  if (/score|result|final|game/i.test(query)) {
-    return "get_recent_results";
-  }
-  
-  if (/dashboard|overview|everything|complete|full info/i.test(query)) {
-    return "get_team_dashboard";
-  }
-  
-  if (/find player|search player|who is/i.test(query)) {
-    return "search_player";
-  }
-  
-  return "get_team_dashboard";
-}
-
-export async function fetchSchoolData(school, toolName, args, fetchJsonFn, extractMcpTextFn) {
-  if (!school.mcpUrl) {
-    return { error: `${school.displayName} MCP server not configured` };
-  }
-  
-  console.log(`\n🏫 ${school.displayName} Request`);
-  console.log(`🔧 Tool: ${toolName}`, args);
-  console.log(`🔗 URL: ${school.mcpUrl}`);
-  
-  const payload = { name: toolName, arguments: args };
-  const result = await fetchJsonFn(school.mcpUrl, payload, 30000, "tools/call");
-  
-  console.log(`📊 ${school.displayName} Result - ok: ${result.ok}, status: ${result.status}`);
-  
-  if (result.ok && !result.json?.error) {
-    let responseText = extractMcpTextFn(result.json) || result.text || "";
-    responseText = linkifyUrls(responseText);
-    console.log(`✅ ${school.displayName} Response:`, responseText.substring(0, 200));
-    return { data: responseText };
-  } else {
-    const errorMsg = result.json?.error?.message || result.text || `${school.displayName} request failed`;
-    console.error(`❌ ${school.displayName} Error:`, errorMsg);
-    return { error: errorMsg };
-  }
-}
+  if (/men'?s basketball|bask
