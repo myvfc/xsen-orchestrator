@@ -105,7 +105,7 @@ export async function fetchSchoolData(school, toolName, args, fetchJsonFn, extra
   console.log(`🔗 URL: ${school.mcpUrl}`);
   
   const payload = { name: toolName, arguments: args };
-  const result = await fetchJsonFn(school.mcpUrl, payload, 7000, "tools/call");
+const result = await fetchJsonFn(school.mcpUrl, payload, 30000, "tools/call");
   
   console.log(`📊 ${school.displayName} Result - ok: ${result.ok}, status: ${result.status}`);
   
