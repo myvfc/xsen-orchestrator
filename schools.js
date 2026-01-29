@@ -76,4 +76,55 @@ export function parseToolName(query) {
     return "get_roster";
   }
   
-  if (/schedule|upcoming|next game|when|calendar
+  if (/schedule|upcoming|next game|when|calendar/i.test(query)) {
+    return "get_schedule";
+  }
+  
+  if (/stats|statistics|performance|numbers/i.test(query)) {
+    return "get_stats";
+  }
+  
+  if (/news|article|story|headline/i.test(query)) {
+    return "get_news";
+  }
+  
+  if (/score|result|final|game/i.test(query)) {
+    return "get_recent_results";
+  }
+  
+  if (/dashboard|overview|everything|complete|full info/i.test(query)) {
+    return "get_team_dashboard";
+  }
+  
+  if (/find player|search player|who is/i.test(query)) {
+    return "search_player";
+  }
+  
+  return "get_team_dashboard";
+}
+
+export async function fetchSchoolData(school, toolName, args, fetchJsonFn, extractMcpTextFn) {
+  if (!school.mcpUrl) {
+    return { error: `${school.displayName} MCP server not configured` };
+  }
+  
+  console.log(`\n🏫 ${school.displayName} Request`);
+  console.log(`🔧 Tool: ${toolName}`, args);
+  console.log(`🔗 URL: ${school.mcpUrl}`);
+  
+  const payload = { name: toolName, arguments: args };
+  const result = await fetchJsonFn(school.mcpUrl, payload, 30000, "tools/call");
+  
+  console.log(`📊 ${school.displayName} Result - ok: ${result.ok}, status: ${result.status}`);
+  
+  if (result.ok && !result.json?.error) {
+    let responseText = extractMcpTextFn(result.json) || result.text || "";
+    responseText = linkifyUrls(responseText);
+    console.log(`✅ ${school.displayName} Response:`, responseText.substring(0, 200));
+    return { data: responseText };
+  } else {
+    const errorMsg = result.json?.error?.message || result.text || `${school.displayName} request failed`;
+    console.error(`❌ ${school.displayName} Error:`, errorMsg);
+    return { error: errorMsg };
+  }
+}
