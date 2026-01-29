@@ -17,12 +17,19 @@ try {
 }
 
 function linkifyUrls(text) {
-  // Convert (https://...) to HTML anchor tags
-  return text.replace(/\(https?:\/\/[^\s\)]+\)/g, (match) => {
-    const url = match.slice(1, -1); // Remove parentheses
-    return `<a href="${url}" target="_blank" style="color: #0066cc; text-decoration: underline;">View Bio</a>`;
-  });
+  // Simply remove parentheses around URLs - let the frontend auto-linkify
+  return text.replace(/\((https?:\/\/[^\s\)]+)\)/g, '$1');
 }
+```
+
+**This converts:**
+```
+Hannah Hopkins - FR - Pitcher (https://www.nmhu.edu/sports/softball/roster/hannah-hopkins/7217)
+```
+
+**To:**
+```
+Hannah Hopkins - FR - Pitcher https://www.nmhu.edu/sports/softball/roster/hannah-hopkins/7217
 
 export function detectSchool(query) {
   const lowerQuery = query.toLowerCase();
