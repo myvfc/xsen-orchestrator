@@ -3,7 +3,7 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import OpenAI from "openai";
+import { detectSchool, parseSport, parseToolName, fetchSchoolData } from "./schools.js";
 
 console.log("MCP KEY PRESENT:", !!process.env.MCP_API_KEY);
 
@@ -519,6 +519,69 @@ async function getGymnastics(query) {
   if (!GYMNASTICS_MCP_URL) {
     return { error: "Gymnastics not configured" };
   }
+  async function getSchoolAthletics(query) {
+  console.log(`\n🏫 School Athletics Request: "${query}"`);
+  
+  // Detect which school is being asked about
+  const school = detectSchool(query);
+  
+  if (!school) {
+    return { error: "Could not determine which school you're asking about" };
+  }
+  
+  // If it's OU, return message to use existing tools
+  if (school.usesExistingTools) {
+    return { 
+      error: "For Oklahoma Sooners, please use the specific ESPN, CFBD, NCAA, or Gymnastics tools instead.",
+      school: school.displayName
+    };
+  }
+  
+  // Determine which tool to call
+  const toolName = parseToolName(query);
+  const sport = parseSport(query);
+  
+  console.log(`🎯 School: ${school.displayName}, Tool: ${toolName}, Sport: ${sport}`);
+  
+  // Prepare arguments based on tool
+  let args = { sport: sport };
+  
+  // For search_player, extract search term
+  if (toolName === "search_player") {
+    const searchTerm = query
+      .toLowerCase()
+      .replace(new RegExp(school.keywords.join("|"), "gi"), "")
+      .replace(/\b(find|search|who is|player|roster)\b/gi, "")
+      .trim();
+    args = { sport: sport, searchTerm: searchTerm };
+  }
+  
+  // For get_news, set limit
+  if (toolName === "get_news") {
+    args.limit = 5;
+  }
+  
+  // Fetch data from school's MCP server
+  return await fetchSchoolData(school, toolName, args, fetchJson, extractMcpText);
+}
+
+/* ------------------------------------------------------------------ */
+/*                      OPENAI FUNCTION TOOLS                         */
+/* ------------------------------------------------------------------ */
+```
+
+**So the complete section looks like:**
+```
+getGymnastics function ending...
+}
+
+async function getSchoolAthletics(query) {
+  ... new function here ...
+}
+
+/* ------------------------------------------------------------------ */
+/*                      OPENAI FUNCTION TOOLS                         */
+/* ------------------------------------------------------------------ */
   
   console.log(`\n🤸 Gymnastics Request: "${query}"`);
   console.log(`🔗 GYMNASTICS_MCP_URL: ${GYMNASTICS_MCP_URL}`);
