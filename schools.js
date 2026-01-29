@@ -17,10 +17,10 @@ try {
 }
 
 function linkifyUrls(text) {
-  // Remove parentheses around URLs so they become auto-clickable
+  // Convert (https://...) to HTML anchor tags
   return text.replace(/\(https?:\/\/[^\s\)]+\)/g, (match) => {
     const url = match.slice(1, -1); // Remove parentheses
-    return `\n🔗 ${url}`; // Raw URL with icon, most interfaces auto-link this
+    return `<a href="${url}" target="_blank" style="color: #0066cc; text-decoration: underline;">View Bio</a>`;
   });
 }
 
