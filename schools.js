@@ -17,7 +17,9 @@ try {
 }
 
 function linkifyUrls(text) {
-  return text.replace(/\((https?:\/\/[^\s\)]+)\)/g, '$1');
+  return text
+    .replace(/\((https?:\/\/[^\s\)]+)\)/g, '$1') // Remove parens around URLs
+    .replace(/(https?:\/\/[^\s]+)\)+/g, '$1');    // Strip trailing ) from any URL
 }
 
 export function detectSchool(query) {
