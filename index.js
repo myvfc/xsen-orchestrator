@@ -537,12 +537,7 @@ async function getSchoolAthletics(query) {
     return { error: "Could not determine which school you're asking about" };
   }
   
-  if (school.usesExistingTools) {
-    return { 
-      error: "For Oklahoma Sooners, please use the specific ESPN, CFBD, NCAA, or Gymnastics tools instead.",
-      school: school.displayName
-    };
-  }
+  // REMOVED: usesExistingTools check - now OU can use this tool for rosters/bios/news
   
   const toolName = parseToolName(query);
   const sport = parseSport(query);
@@ -656,7 +651,7 @@ const tools = [
     type: "function",
     function: {
       name: "get_ncaa_womens_sports",
-      description: "Get NCAA WOMEN'S SPORTS data for softball, volleyball, soccer, and women's basketball. Use for ANY women's sports queries including scores, schedules, rankings, stats, and standings. Keywords: 'softball', 'volleyball', 'soccer', 'women's basketball', 'lady sooners', 'womens', 'patty gasso'.",
+      description: "Get NCAA WOMEN'S SPORTS data for softball, volleyball, soccer, and women's basketball. Use for ANY women's sports queries including scores, schedules, rankings, stats, and standings. DO NOT use for rosters - use get_school_athletics instead. Keywords: 'softball', 'volleyball', 'soccer', 'women's basketball', 'lady sooners', 'womens', 'patty gasso'.",
       parameters: {
         type: "object",
         properties: {
@@ -690,13 +685,13 @@ const tools = [
     type: "function",
     function: {
       name: "get_school_athletics",
-      description: "Get athletics data for D2/D3 schools like NMHU (New Mexico Highlands) and WTAMU (West Texas A&M). Use when user asks about these schools. Keywords: 'nmhu', 'highlands', 'new mexico highlands', 'wtamu', 'west texas', 'buffs'.",
+      description: "Get rosters, player bios, schedules, and team news directly from school athletics websites. Use for ROSTER queries, PLAYER BIO lookups, and TEAM NEWS. Available for: Oklahoma (OU, Sooners), NMHU (Highlands), WTAMU (Buffs). IMPORTANT: For OU scores/stats/rankings, use ESPN/CFBD/NCAA tools instead - this tool is ONLY for rosters and website content. Keywords: 'roster', 'player bio', 'team news', 'who's on the team', plus school names.",
       parameters: {
         type: "object",
         properties: {
           query: {
             type: "string",
-            description: "The query about the school (e.g., 'NMHU softball roster', 'West Texas A&M football schedule')"
+            description: "The query about school rosters/bios/news (e.g., 'OU softball roster', 'NMHU football player bios', 'WTAMU basketball news')"
           }
         },
         required: ["query"]
@@ -1330,11 +1325,12 @@ IMPORTANT TOOL USAGE RULES:
 - get_espn_stats: For CURRENT/RECENT games (today, this week, latest score)
 - get_cfbd_history: For FOOTBALL all-time records, historical matchups, "vs", series records, AND PLAYER SEASON STATS
 - get_cfbd_basketball: For ANY BASKETBALL queries (scores, stats, schedule, rankings, roster)
-- get_ncaa_womens_sports: For WOMEN'S SPORTS (softball, volleyball, soccer, women's basketball)
+- get_ncaa_womens_sports: For WOMEN'S SPORTS scores/schedules/rankings/stats (NOT rosters)
 - get_gymnastics: For GYMNASTICS queries (both men's and women's) - BOTH OU TEAMS ARE #1!
-- get_school_athletics: For D2/D3 schools like NMHU and WTAMU
+- get_school_athletics: For ROSTERS, PLAYER BIOS, and TEAM NEWS from athletics websites
 
-SUPPORTED D2/D3 SCHOOLS:
+SUPPORTED SCHOOLS (for get_school_athletics):
+- Oklahoma (OU, Sooners) - rosters, bios, news from soonersports.com
 - New Mexico Highlands (NMHU, Highlands, Cowboys)
 - West Texas A&M (WTAMU, West Texas, Buffs)
 
@@ -1350,12 +1346,16 @@ Common queries:
 - "Sam Godwin stats" → use get_cfbd_basketball
 - "OU hoops schedule" → use get_cfbd_basketball
 - "softball score" → use get_ncaa_womens_sports
+- "softball roster" → use get_school_athletics (NOT get_ncaa_womens_sports)
 - "volleyball schedule" → use get_ncaa_womens_sports
 - "women's basketball rankings" → use get_ncaa_womens_sports
 - "soccer standings" → use get_ncaa_womens_sports
 - "gymnastics rankings" → use get_gymnastics (BOTH teams #1!)
 - "women's gymnastics score" → use get_gymnastics
 - "men's gymnastics roster" → use get_gymnastics
+- "OU softball roster" → use get_school_athletics
+- "player bio" → use get_school_athletics
+- "team news" → use get_school_athletics
 - "NMHU softball roster" → use get_school_athletics
 - "West Texas A&M football schedule" → use get_school_athletics
 - "history" (alone) → ask what kind of history they want
