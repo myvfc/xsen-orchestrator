@@ -1472,6 +1472,15 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
 
     session.chat.push(assistantMessage);
 
+    // FINAL FIX: Clean up any malformed markdown links with extra trailing parentheses
+    if (assistantMessage.content) {
+      // Fix patterns like [text](URL)) -> [text](URL)
+      assistantMessage.content = assistantMessage.content.replace(/(\]\(https?:\/\/[^\)]+)\)+(\))/g, '$1$2');
+      
+      // Also fix any standalone URLs with trailing )
+      assistantMessage.content = assistantMessage.content.replace(/(https?:\/\/[^\s\)]+)\)+(?!\))/g, '$1');
+    }
+
     return res.json({ response: assistantMessage.content });
 
   } catch (err) {
