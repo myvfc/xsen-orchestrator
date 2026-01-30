@@ -117,7 +117,22 @@ export async function fetchSchoolData(school, toolName, args, fetchJsonFn, extra
   
   if (result.ok && !result.json?.error) {
     let responseText = extractMcpTextFn(result.json) || result.text || "";
+    
+    // DEBUG: Show what we're working with
+    console.log(`🔍 BEFORE linkifyUrls:`, responseText.substring(0, 500));
+    
+    // Apply linkifyUrls
     responseText = linkifyUrls(responseText);
+    
+    // DEBUG: Show after linkifyUrls
+    console.log(`🔍 AFTER linkifyUrls:`, responseText.substring(0, 500));
+    
+    // ADDITIONAL FIX: Strip any remaining ) from URLs in the text
+    responseText = responseText.replace(/(https?:\/\/[^\s<>"]+)\)+/g, '$1');
+    
+    // DEBUG: Show final result
+    console.log(`🔍 FINAL cleaned text:`, responseText.substring(0, 500));
+    
     console.log(`✅ ${school.displayName} Response:`, responseText.substring(0, 200));
     return { data: responseText };
   } else {
