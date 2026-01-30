@@ -8,7 +8,7 @@
       "sports": ["football", "basketball", "baseball", "softball", "gymnastics"],
       "keywords": ["ou", "oklahoma", "sooners", "boomer"],
       "isDefault": true,
-      "usesExistingTools": true,
+      "usesExistingTools": false,
       "conference": "SEC"
     },
     {
