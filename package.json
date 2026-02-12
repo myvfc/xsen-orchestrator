@@ -1,0 +1,35 @@
+{
+  "name": "xsen-orchestrator",
+  "version": "1.0.0",
+  "description": "XSEN Subscription Management & User Authentication Orchestrator",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "migrate": "node migrate.js",
+    "setup": "node setup.js",
+    "test": "node test.js"
+  },
+  "keywords": [
+    "stripe",
+    "subscriptions",
+    "authentication",
+    "mcp"
+  ],
+  "author": "Kevin - Peak Financial Group LLC",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "stripe": "^14.10.0",
+    "pg": "^8.11.3",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
