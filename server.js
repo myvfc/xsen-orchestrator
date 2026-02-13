@@ -1,4 +1,4 @@
-require('dotenv').config();
+equire('dotenv').config();
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -662,34 +662,9 @@ async function startServer() {
       }
     }
     
-    // Clean up duplicate subscriptions - keep only the newest for each email
-    console.log('🧹 Cleaning up duplicate subscriptions...');
-    try {
-      const cleanup = await pool.query(`
-        DELETE FROM auth_tokens 
-        WHERE stripe_customer_id IN (
-          SELECT s.stripe_customer_id 
-          FROM subscriptions s
-          WHERE s.id NOT IN (
-            SELECT DISTINCT ON (email) id 
-            FROM subscriptions 
-            WHERE email IS NOT NULL
-            ORDER BY email, created_at DESC
-          )
-        );
-        
-        DELETE FROM subscriptions 
-        WHERE id NOT IN (
-          SELECT DISTINCT ON (email) id 
-          FROM subscriptions 
-          WHERE email IS NOT NULL
-          ORDER BY email, created_at DESC
-        );
-      `);
-      console.log('✅ Cleaned up old subscriptions');
-    } catch (error) {
-      console.log('⚠️ Cleanup warning:', error.message);
-    }
+    // CLEANUP DISABLED - was causing server crashes
+    // Will debug separately
+    console.log('ℹ️ Duplicate cleanup disabled for now');
     
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
