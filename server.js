@@ -464,12 +464,14 @@ app.post('/api/exchange-email', async (req, res) => {
   }
 
   try {
-    // Get the auth token for this email
+    // Get the MOST RECENT auth token for this email
     const result = await pool.query(
       `SELECT t.token, t.expires_at, s.email, s.tier, s.status
        FROM auth_tokens t
        JOIN subscriptions s ON t.stripe_customer_id = s.stripe_customer_id
-       WHERE s.email = $1`,
+       WHERE s.email = $1
+       ORDER BY s.created_at DESC
+       LIMIT 1`,
       [email.toLowerCase().trim()]
     );
 
@@ -658,6 +660,35 @@ async function startServer() {
       } else {
         console.log('⚠️ Tier migration warning:', error.message);
       }
+    }
+    
+    // Clean up duplicate subscriptions - keep only the newest for each email
+    console.log('🧹 Cleaning up duplicate subscriptions...');
+    try {
+      const cleanup = await pool.query(`
+        DELETE FROM auth_tokens 
+        WHERE stripe_customer_id IN (
+          SELECT s.stripe_customer_id 
+          FROM subscriptions s
+          WHERE s.id NOT IN (
+            SELECT DISTINCT ON (email) id 
+            FROM subscriptions 
+            WHERE email IS NOT NULL
+            ORDER BY email, created_at DESC
+          )
+        );
+        
+        DELETE FROM subscriptions 
+        WHERE id NOT IN (
+          SELECT DISTINCT ON (email) id 
+          FROM subscriptions 
+          WHERE email IS NOT NULL
+          ORDER BY email, created_at DESC
+        );
+      `);
+      console.log('✅ Cleaned up old subscriptions');
+    } catch (error) {
+      console.log('⚠️ Cleanup warning:', error.message);
     }
     
     app.listen(PORT, '0.0.0.0', () => {
