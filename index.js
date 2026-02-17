@@ -1540,6 +1540,6 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
 console.log("🚪 Binding to PORT:", PORT);
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
+  console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);  // ← FIXED
 });
 
