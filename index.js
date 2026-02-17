@@ -1291,15 +1291,18 @@ app.post("/tts", async (req, res) => {
 app.get("/health", (req, res) => res.status(200).send("OK"));
 
 /* ------------------------------------------------------------------ */
+/*                      HANDLE CORS PREFLIGHT                          */
+/* ------------------------------------------------------------------ */
+app.options("/chat", cors());
+
+/* ------------------------------------------------------------------ */
 /*                           CHAT ROUTE                                */
 /* ------------------------------------------------------------------ */
-
 app.post("/chat", async (req, res) => {
   try {
     const sessionId = req.body?.sessionId || req.body?.session_id || "default";
     const rawText = getText(req.body);
-    const schoolId = req.body?.school || "sooners"; // Get school from request
-
+    const schoolId = req.body?.school || "sooners";
     // Load school config
     const school = getAllSchools().find(s => s.id === schoolId) || getAllSchools().find(s => s.isDefault);
     if (!school) {
