@@ -1,4 +1,4 @@
-import express from "express";
+mport express from "express";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
@@ -1291,9 +1291,19 @@ app.post("/chat", async (req, res) => {
   try {
     const sessionId = req.body?.sessionId || req.body?.session_id || "default";
     const rawText = getText(req.body);
+    const schoolId = req.body?.school || "sooners"; // Get school from request
+
+    // Load school config
+    const school = getAllSchools().find(s => s.id === schoolId) || getAllSchools().find(s => s.isDefault);
+    if (!school) {
+      return res.json({ response: "School not found. Please try again." });
+    }
+
+    const greeting = school.greeting || "Hello!";
+    const mascotName = school.mascotName || "Bot";
 
     if (!rawText) {
-      return res.json({ response: "Boomer Sooner! What can I help you with?" });
+      return res.json({ response: `${greeting} What can I help you with?` });
     }
 
     if (!sessions.has(sessionId)) sessions.set(sessionId, { chat: [] });
@@ -1306,8 +1316,8 @@ app.post("/chat", async (req, res) => {
 
       return res.json({
         response: isCorrect
-          ? `✅ **Correct!** 🎉\n\n${session.explain}\n\nTry **trivia**, **video**, **stats**, or **history** — and don't forget to tune in to Boomer Bot Radio! 🎙️📻`
-          : `❌ **Not quite!**\n\nCorrect answer: **${["A", "B", "C", "D"][session.correctIndex]}** - ${session.explain}\n\nTry **trivia**, **video**, **stats**, or **history** — and don't forget to tune in to Boomer Bot Radio! 🎙️📻`
+          ? `✅ **Correct!** 🎉\n\n${session.explain}\n\nTry **trivia**, **video**, **stats**, or **history** — and don't forget to tune in to ${school.displayName} Radio! 🎙️📻`
+          : `❌ **Not quite!**\n\nCorrect answer: **${["A", "B", "C", "D"][session.correctIndex]}** - ${session.explain}\n\nTry **trivia**, **video**, **stats**, or **history** — and don't forget to tune in to ${school.displayName} Radio! 🎙️📻`
       });
     }
 
@@ -1317,7 +1327,7 @@ app.post("/chat", async (req, res) => {
     const messages = [
       {
         role: "system",
-        content: `You are Boomer Bot, the enthusiastic AI assistant for Oklahoma Sooners fans. You love OU sports and provide helpful, engaging responses.
+        content: `${school.systemPrompt || `You are ${mascotName}, the enthusiastic AI assistant for ${school.name} fans. You love ${school.displayName} sports and provide helpful, engaging responses.`}
 
 IMPORTANT TOOL USAGE RULES:
 - get_trivia_question: ONLY when user explicitly says "trivia", "quiz", or "test me"
@@ -1485,8 +1495,12 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
 
   } catch (err) {
     console.error("❌ Orchestrator error:", err);
+    const schoolId = req.body?.school || "sooners";
+    const school = getAllSchools().find(s => s.id === schoolId) || getAllSchools().find(s => s.isDefault);
+    const errorGreeting = school?.displayName === "OSU" ? "Sorry Cowboy" : "Sorry Sooner";
+    
     return res.json({
-      response: "Sorry Sooner — something went wrong on my end. 🏈"
+      response: `${errorGreeting} — something went wrong on my end. Please try again.`
     });
   }
 });
@@ -1500,3 +1514,4 @@ console.log("🚪 Binding to PORT:", PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
+
