@@ -15,7 +15,6 @@ const app = express();
 
 // ─── CORS MUST BE FIRST ───────────────────────────────
 app.use(cors({
-app.use(cors({
   origin: /\.xsen\.fun$/,  // Allows any *.xsen.fun
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
