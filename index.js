@@ -15,10 +15,17 @@ const app = express();
 
 // ─── CORS MUST BE FIRST ───────────────────────────────
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: '*'
+  origin: [
+    "https://sooners.xsen.fun",
+    "https://xsen.fun"
+  ],
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: false
 }));
+
+app.options("*", cors());
+
 
 app.use(express.json());
 
@@ -37,6 +44,10 @@ app.get("/", (req, res) => {
   });
 });
 
+app.post("/chat", (req, res) => {
+  console.log("🔥 /chat HIT");
+  res.json({ ok: true, message: "Chat endpoint reachable" });
+});
 /* ------------------------------------------------------------------ */
 /*                         TOOL FUNCTIONS FOR LLM                      */
 /* ------------------------------------------------------------------ */
