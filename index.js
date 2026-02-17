@@ -44,17 +44,6 @@ app.get("/", (req, res) => {
   });
 });
 
-app.post("/chat", async (req, res) => {
-  console.log("🔥 /chat HIT");
-  console.log("📦 Request body:", JSON.stringify(req.body));
-  console.log("📝 Headers:", req.headers);
-  
-  try {
-    const sessionId = req.body?.sessionId || req.body?.session_id || "default";
-    const rawText = getText(req.body);
-    const schoolId = req.body?.school || "sooners";
-    
-    console.log("🎯 Parsed - sessionId:", sessionId, "rawText:", rawText, "schoolId:", schoolId);
 /* ------------------------------------------------------------------ */
 /*                         TOOL FUNCTIONS FOR LLM                      */
 /* ------------------------------------------------------------------ */
