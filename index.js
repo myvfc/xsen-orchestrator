@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import OpenAI from "openai";
-import { detectSchool, parseSport, parseToolName, fetchSchoolData } from "./schools.js";
+import { detectSchool, parseSport, parseToolName, fetchSchoolData, getAllSchools } from "./schools.js";
 
 console.log("MCP KEY PRESENT:", !!process.env.MCP_API_KEY);
 
@@ -13,6 +13,16 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+// ─── CORS MUST BE FIRST ───────────────────────────────
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: '*'
+}));
+
+app.use(express.json());
+
+// ─── ROUTES COME AFTER ────────────────────────────────
 app.get("/", (req, res) => {
   res.json({
     status: "ok",
@@ -26,14 +36,6 @@ app.get("/", (req, res) => {
     gymnasticsEnabled: Boolean(GYMNASTICS_MCP_URL)
   });
 });
-
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: '*'
-}));
-
-app.use(express.json());
 
 /* ------------------------------------------------------------------ */
 /*                         TOOL FUNCTIONS FOR LLM                      */
