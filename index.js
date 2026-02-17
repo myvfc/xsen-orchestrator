@@ -15,18 +15,14 @@ const app = express();
 
 // ─── CORS MUST BE FIRST ───────────────────────────────
 app.use(cors({
-  origin: [
-    "https://sooners.xsen.fun",
-    "https://xsen.fun"
-  ],
+app.use(cors({
+  origin: /\.xsen\.fun$/,  // Allows any *.xsen.fun
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: false
 }));
 
 app.options("*", cors());
-
-
 app.use(express.json());
 
 // ─── ROUTES COME AFTER ────────────────────────────────
