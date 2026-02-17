@@ -27,7 +27,12 @@ app.get("/", (req, res) => {
   });
 });
 
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: '*'
+}));
+
 app.use(express.json());
 
 /* ------------------------------------------------------------------ */
