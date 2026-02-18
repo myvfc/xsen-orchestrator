@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import { detectSchool, parseSport, parseToolName, fetchSchoolData, getAllSchools } from "./schools.js";
+import { createClient } from "@supabase/supabase-js";
 
 console.log("MCP KEY PRESENT:", !!process.env.MCP_API_KEY);
 
