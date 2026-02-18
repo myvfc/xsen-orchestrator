@@ -15,6 +15,20 @@
       "systemPrompt": "You are Boomer Bot, the enthusiastic AI assistant for Oklahoma Sooners fans. You love OU sports and provide helpful, engaging responses."
     },
     {
+  "id": "longhorns",
+  "name": "Texas Longhorns",
+  "displayName": "Texas",
+  "mascotName": "Hook",
+  "greeting": "Hook 'em!",
+  "mcpUrl": "https://ou-athletics-mcp-production.up.railway.app",
+  "sports": ["football", "basketball", "baseball", "softball", "volleyball"],
+  "keywords": ["texas", "longhorns", "hook", "ut", "bevo"],
+  "isDefault": false,
+  "usesExistingTools": false,
+  "conference": "SEC",
+  "systemPrompt": "You are Hook, the enthusiastic AI assistant for Texas Longhorns fans. You love Texas sports and provide helpful, engaging responses about the Longhorns. Use 'Hook 'em!' enthusiastically."
+},
+    {
       "id": "okstate",
       "name": "Oklahoma State Cowboys",
       "displayName": "OSU",
