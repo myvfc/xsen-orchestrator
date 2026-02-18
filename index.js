@@ -1331,7 +1331,7 @@ async function logMessages(userId, schoolId, userMessage, replyMessage, tokenCou
 app.post("/chat", async (req, res) => {
    console.log(`📨 ${req.body?.school || "?"} - ${req.body?.message?.substring(0, 40) || "?"}`);
   try {
-    const sessionId = req.body?.sessionId || req.body?.session_id || "default";
+    const sessionId = req.body?.userId || req.body?.sessionId || req.body?.session_id || "default";
     const rawText = getText(req.body);
     const schoolId = req.body?.school || "sooners";
     // Load school config
