@@ -1509,6 +1509,8 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
       assistantMessage.content = assistantMessage.content.replace(/(https?:\/\/[^\s\)]+)\)+(?!\))/g, '$1');
     }
 
+    const tokenCount = response.usage?.total_tokens || 0;
+    await logMessages(sessionId, schoolId, rawText, assistantMessage.content, tokenCount);
     return res.json({ response: assistantMessage.content });
 
   } catch (err) {
