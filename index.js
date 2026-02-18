@@ -1305,6 +1305,29 @@ app.options("/chat", cors());
 /* ------------------------------------------------------------------ */
 /*                           CHAT ROUTE                                */
 /* ------------------------------------------------------------------ */
+async function logMessages(userId, schoolId, userMessage, replyMessage, tokenCount) {
+  try {
+    await supabase.from('message_logs').insert([
+      {
+        user_id: userId,
+        school_id: schoolId,
+        role: 'user',
+        message: userMessage,
+        token_count: null
+      },
+      {
+        user_id: userId,
+        school_id: schoolId,
+        role: 'assistant',
+        message: replyMessage,
+        token_count: tokenCount
+      }
+    ]);
+    console.log(`📊 Logged messages for ${userId} / ${schoolId}`);
+  } catch (err) {
+    console.error('❌ Message log error:', err);
+  }
+}
 app.post("/chat", async (req, res) => {
    console.log(`📨 ${req.body?.school || "?"} - ${req.body?.message?.substring(0, 40) || "?"}`);
   try {
