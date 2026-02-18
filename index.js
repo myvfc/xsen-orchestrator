@@ -4,14 +4,19 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import OpenAI from "openai";
+import { createClient } from "@supabase/supabase-js";
 import { detectSchool, parseSport, parseToolName, fetchSchoolData, getAllSchools } from "./schools.js";
 
 console.log("MCP KEY PRESENT:", !!process.env.MCP_API_KEY);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const app = express();
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 // ─── CORS MUST BE FIRST ───────────────────────────────
 app.use(cors({
