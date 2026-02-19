@@ -20,7 +20,7 @@ const supabase = createClient(
 
 // ─── CORS MUST BE FIRST ───────────────────────────────
 app.use(cors({
-  origin: /\.xsen\.fun$/,  // Allows any *.xsen.fun
+  origin: /^https:\/\/(.*\.)?xsen\.fun$/, // Allows any *.xsen.fun
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: false
