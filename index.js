@@ -20,7 +20,7 @@ const supabase = createClient(
 
 // ─── CORS MUST BE FIRST ───────────────────────────────
 app.use(cors({
-  origin: /^https:\/\/(.*\.)?xsen\.fun$/, // Allows any *.xsen.fun
+  origin: /^https:\/\/(.*\.)?xsen\.fun$/,
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: false
@@ -107,10 +107,9 @@ async function getESPNStats(query) {
   
   const lowerQuery = query.toLowerCase();
   
-  let toolName = "get_score"; // default
+  let toolName = "get_score";
   let args = { team: "Oklahoma", sport: "football" };
   
-  // Detect sport
   let sport = "football";
   if (/basketball|hoops|bball/i.test(query)) {
     sport = /women|lady|ladies/i.test(query) ? "womens-basketball" : "mens-basketball";
@@ -132,7 +131,6 @@ async function getESPNStats(query) {
     sport = "wrestling";
   }
   
-  // Determine which ESPN tool to use
   if (/player stats|individual stats|who scored|leading scorer/i.test(query)) {
     toolName = "get_game_player_stats";
     return { error: "For player stats, please ask for the game score first, then I can get detailed player statistics." };
@@ -338,10 +336,8 @@ async function getCFBDBasketball(query) {
   const yearMatch = query.match(/\b(19\d{2}|20\d{2})\b/);
   if (yearMatch) {
     year = parseInt(yearMatch[1]);
-    console.log(`📅 Extracted year from query: ${year}`);
   } else {
     year = new Date().getFullYear();
-    console.log(`📅 Using default year: ${year}`);
   }
   
   let toolName = "get_basketball_score";
@@ -435,7 +431,6 @@ async function getNCAAWomensSports(query) {
     
     if (yearMatch) {
       args.year = yearMatch[1];
-      
       if (monthMatch) {
         const monthMap = {
           'january': '01', 'february': '02', 'march': '03', 'april': '04',
@@ -490,8 +485,6 @@ async function getGymnastics(query) {
   
   console.log(`\n🤸 Gymnastics Request: "${query}"`);
   console.log(`🔗 GYMNASTICS_MCP_URL: ${GYMNASTICS_MCP_URL}`);
-  
-  const lowerQuery = query.toLowerCase();
   
   const isMens = /\bmen'?s\b|\bmale\b/i.test(query);
   const gender = isMens ? "mens" : "womens";
@@ -551,8 +544,6 @@ async function getSchoolAthletics(query) {
     return { error: "Could not determine which school you're asking about" };
   }
   
-  // REMOVED: usesExistingTools check - now OU can use this tool for rosters/bios/news
-  
   const toolName = parseToolName(query);
   const sport = parseSport(query);
   
@@ -586,11 +577,7 @@ const tools = [
     function: {
       name: "get_trivia_question",
       description: "Get a random OU Sooners trivia question with multiple choice answers. ONLY use when user explicitly asks for 'trivia', 'quiz', or 'test my knowledge'.",
-      parameters: {
-        type: "object",
-        properties: {},
-        required: []
-      }
+      parameters: { type: "object", properties: {}, required: [] }
     }
   },
   {
@@ -601,10 +588,7 @@ const tools = [
       parameters: {
         type: "object",
         properties: {
-          query: {
-            type: "string",
-            description: "The search query for videos (e.g., 'Baker Mayfield highlights', 'OU vs Alabama', 'softball championship')"
-          }
+          query: { type: "string", description: "The search query for videos (e.g., 'Baker Mayfield highlights', 'OU vs Alabama', 'softball championship')" }
         },
         required: ["query"]
       }
@@ -618,10 +602,7 @@ const tools = [
       parameters: {
         type: "object",
         properties: {
-          query: {
-            type: "string",
-            description: "The stats query focused on recent/current games (e.g., 'OU basketball score today', 'football schedule this week')"
-          }
+          query: { type: "string", description: "The stats query focused on recent/current games (e.g., 'OU basketball score today', 'football schedule this week')" }
         },
         required: ["query"]
       }
@@ -635,10 +616,7 @@ const tools = [
       parameters: {
         type: "object",
         properties: {
-          query: {
-            type: "string",
-            description: "The basketball query (e.g., 'What was the OU basketball score?', 'Sam Godwin stats', 'OU basketball schedule', 'list basketball roster')"
-          }
+          query: { type: "string", description: "The basketball query (e.g., 'What was the OU basketball score?', 'Sam Godwin stats', 'OU basketball schedule', 'list basketball roster')" }
         },
         required: ["query"]
       }
@@ -652,10 +630,7 @@ const tools = [
       parameters: {
         type: "object",
         properties: {
-          query: {
-            type: "string",
-            description: "Pass the user's EXACT question without modification. Do not change years or rephrase. Example: if user asks '2024', pass '2024' exactly."
-          }
+          query: { type: "string", description: "Pass the user's EXACT question without modification. Do not change years or rephrase." }
         },
         required: ["query"]
       }
@@ -665,14 +640,11 @@ const tools = [
     type: "function",
     function: {
       name: "get_ncaa_womens_sports",
-      description: "Get NCAA WOMEN'S SPORTS data for softball, volleyball, soccer, and women's basketball. Use for ANY women's sports queries including scores, schedules, rankings, stats, and standings. DO NOT use for rosters - use get_school_athletics instead. Keywords: 'softball', 'volleyball', 'soccer', 'women's basketball', 'lady sooners', 'womens', 'patty gasso'.",
+      description: "Get NCAA WOMEN'S SPORTS data for softball, volleyball, soccer, and women's basketball. Use for ANY women's sports queries including scores, schedules, rankings, stats, and standings. DO NOT use for rosters - use get_school_athletics instead.",
       parameters: {
         type: "object",
         properties: {
-          query: {
-            type: "string",
-            description: "The women's sports query (e.g., 'OU softball score', 'volleyball schedule', 'women's basketball rankings', 'soccer standings')"
-          }
+          query: { type: "string", description: "The women's sports query (e.g., 'OU softball score', 'volleyball schedule', 'women's basketball rankings', 'soccer standings')" }
         },
         required: ["query"]
       }
@@ -682,14 +654,11 @@ const tools = [
     type: "function",
     function: {
       name: "get_gymnastics",
-      description: "Get GYMNASTICS data for both men's and women's programs. Use for ANY gymnastics-related queries including scores, schedules, rankings, rosters, and team info. BOTH OU teams are currently ranked #1! Keywords: 'gymnastics', 'gymnast', 'vault', 'bars', 'beam', 'floor', 'pommel horse', 'rings', 'parallel bars', 'high bar', 'meet'.",
+      description: "Get GYMNASTICS data for both men's and women's programs. Use for ANY gymnastics-related queries including scores, schedules, rankings, rosters, and team info. BOTH OU teams are currently ranked #1!",
       parameters: {
         type: "object",
         properties: {
-          query: {
-            type: "string",
-            description: "The gymnastics query (e.g., 'OU gymnastics rankings', 'women's gymnastics score', 'men's gymnastics roster', 'gymnastics schedule')"
-          }
+          query: { type: "string", description: "The gymnastics query (e.g., 'OU gymnastics rankings', 'women's gymnastics score', 'men's gymnastics roster', 'gymnastics schedule')" }
         },
         required: ["query"]
       }
@@ -699,14 +668,11 @@ const tools = [
     type: "function",
     function: {
       name: "get_school_athletics",
-      description: "Get rosters, player bios, schedules, and team news directly from school athletics websites. Use for ROSTER queries, PLAYER BIO lookups, and TEAM NEWS. Available for: Oklahoma (OU, Sooners), NMHU (Highlands), WTAMU (Buffs). IMPORTANT: For OU scores/stats/rankings, use ESPN/CFBD/NCAA tools instead - this tool is ONLY for rosters and website content. Keywords: 'roster', 'player bio', 'team news', 'who's on the team', plus school names.",
+      description: "Get rosters, player bios, schedules, and team news directly from school athletics websites. Use for ROSTER queries, PLAYER BIO lookups, and TEAM NEWS. Available for: Oklahoma (OU, Sooners), NMHU (Highlands), WTAMU (Buffs). IMPORTANT: For OU scores/stats/rankings, use ESPN/CFBD/NCAA tools instead - this tool is ONLY for rosters and website content.",
       parameters: {
         type: "object",
         properties: {
-          query: {
-            type: "string",
-            description: "The query about school rosters/bios/news (e.g., 'OU softball roster', 'NMHU football player bios', 'WTAMU basketball news')"
-          }
+          query: { type: "string", description: "The query about school rosters/bios/news (e.g., 'OU softball roster', 'NMHU football player bios', 'WTAMU basketball news')" }
         },
         required: ["query"]
       }
@@ -764,9 +730,7 @@ try {
   const triviaPath = path.join(__dirname, "trivia.json");
   const raw = fs.readFileSync(triviaPath, "utf-8");
   TRIVIA = JSON.parse(raw);
-
   if (!Array.isArray(TRIVIA)) TRIVIA = [];
-
   console.log(`🧠 Loaded ${TRIVIA.length} trivia questions`);
 } catch (err) {
   console.error("❌ Failed to load trivia.json", err?.message || err);
@@ -832,9 +796,7 @@ function buildMCQ(q) {
     .filter(a => a && normalizeAnswer(a) !== correctNorm);
 
   const plausible = allOtherAnswers.filter(a => {
-    const lenOK =
-      a.length >= 3 &&
-      Math.abs(a.length - correct.length) <= 18;
+    const lenOK = a.length >= 3 && Math.abs(a.length - correct.length) <= 18;
     const notSame = normalizeAnswer(a) !== correctNorm;
     return lenOK && notSame;
   });
@@ -897,21 +859,14 @@ function refineVideoQuery(text = "") {
 }
 
 function isESPNStatsRequest(text = "") {
-  return /\b(score|scores|record|stats|stat line|yards|tds|touchdowns|who won|final|rankings|game|games|today|this week|last week|schedule|recent|latest)\b/i.test(
-    text
-  );
+  return /\b(score|scores|record|stats|stat line|yards|tds|touchdowns|who won|final|rankings|game|games|today|this week|last week|schedule|recent|latest)\b/i.test(text);
 }
 
 function isCFBDHistoryRequest(text = "") {
   const lowerText = text.toLowerCase().trim();
-  
   if (lowerText === "history") return true;
-  
   if (/\bvs\.?\b|\bagainst\b|\bversus\b/i.test(text)) return true;
-  
-  return /\b(all[- ]time|historical|record in|season|since|bowl|championship|national title|conference title|series|head to head|coaches|heisman|recruiting|talent|matchup)\b/i.test(
-    text
-  );
+  return /\b(all[- ]time|historical|record in|season|since|bowl|championship|national title|conference title|series|head to head|coaches|heisman|recruiting|talent|matchup)\b/i.test(text);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1137,19 +1092,13 @@ async function callMcp(baseUrl, userText) {
     } else {
       const teamVariations = ["Oklahoma", "Oklahoma Sooners", "OU"];
       const sports = [
-        "mens-basketball", "basketball",
-        "womens-basketball", 
-        "football",
-        "baseball", "softball",
-        "mens-soccer", "soccer",
-        "womens-soccer",
+        "mens-basketball", "basketball", "womens-basketball", 
+        "football", "baseball", "softball",
+        "mens-soccer", "soccer", "womens-soccer",
         "womens-volleyball", "volleyball",
-        "mens-golf", "golf",
-        "womens-golf",
+        "mens-golf", "golf", "womens-golf",
         "womens-gymnastics", "gymnastics",
-        "wrestling",
-        "mens-tennis", "tennis",
-        "womens-tennis"
+        "wrestling", "mens-tennis", "tennis", "womens-tennis"
       ];
       
       teamVariations.forEach(team => {
@@ -1165,14 +1114,8 @@ async function callMcp(baseUrl, userText) {
     
     if (toolName === "get_team_records") {
       teamVariations.forEach(team => {
-        payloadVariations.push({ 
-          name: toolName, 
-          arguments: { team: team, startYear: 2020, endYear: 2024 } 
-        });
-        payloadVariations.push({ 
-          name: toolName, 
-          arguments: { team: team } 
-        });
+        payloadVariations.push({ name: toolName, arguments: { team: team, startYear: 2020, endYear: 2024 } });
+        payloadVariations.push({ name: toolName, arguments: { team: team } });
       });
     } else if (toolName === "get_team_matchup") {
       const opponent = userText
@@ -1183,29 +1126,17 @@ async function callMcp(baseUrl, userText) {
       
       if (opponent) {
         teamVariations.forEach(team => {
-          payloadVariations.push({ 
-            name: toolName, 
-            arguments: { team1: team, team2: opponent, minYear: 2000 } 
-          });
+          payloadVariations.push({ name: toolName, arguments: { team1: team, team2: opponent, minYear: 2000 } });
         });
       }
     } else if (toolName === "get_team_rankings") {
       teamVariations.forEach(team => {
-        payloadVariations.push({ 
-          name: toolName, 
-          arguments: { team: team, year: 2024 } 
-        });
-        payloadVariations.push({ 
-          name: toolName, 
-          arguments: { team: team } 
-        });
+        payloadVariations.push({ name: toolName, arguments: { team: team, year: 2024 } });
+        payloadVariations.push({ name: toolName, arguments: { team: team } });
       });
     } else if (toolName === "get_recruiting" || toolName === "get_team_talent") {
       teamVariations.forEach(team => {
-        payloadVariations.push({ 
-          name: toolName, 
-          arguments: { team: team } 
-        });
+        payloadVariations.push({ name: toolName, arguments: { team: team } });
       });
     }
   }
@@ -1328,17 +1259,39 @@ async function logMessages(userId, schoolId, userMessage, replyMessage, tokenCou
     console.error('❌ Message log error:', err);
   }
 }
+
 app.post("/chat", async (req, res) => {
-   console.log(`📨 ${req.body?.school || "?"} - ${req.body?.message?.substring(0, 40) || "?"}`);
+  console.log(`📨 ${req.body?.school || "?"} - ${req.body?.message?.substring(0, 40) || "?"}`);
   try {
     const sessionId = req.body?.userId || req.body?.sessionId || req.body?.session_id || "default";
     const rawText = getText(req.body);
     const schoolId = req.body?.school || "sooners";
-    // Load school config
+
     const school = getAllSchools().find(s => s.id === schoolId) || getAllSchools().find(s => s.isDefault);
     if (!school) {
       return res.json({ response: "School not found. Please try again." });
     }
+
+    // ─── MONTHLY MESSAGE LIMIT (authenticated users only) ─────────
+    if (sessionId !== 'anonymous' && sessionId !== 'default') {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const { count, error } = await supabase
+        .from('message_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', sessionId)
+        .eq('role', 'user')
+        .gte('created_at', startOfMonth.toISOString());
+
+      if (!error && count >= 150) {
+        return res.json({
+          response: `You've reached your 150 message limit for this month. Your messages reset on the 1st. Thank you for being a ${school.displayName} fan! 🏈`
+        });
+      }
+    }
+    // ──────────────────────────────────────────────────────────────
 
     const greeting = school.greeting || "Hello!";
     const mascotName = school.mascotName || "Bot";
@@ -1523,12 +1476,8 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
 
     session.chat.push(assistantMessage);
 
-    // FINAL FIX: Clean up any malformed markdown links with extra trailing parentheses
     if (assistantMessage.content) {
-      // Fix patterns like [text](URL)) -> [text](URL)
       assistantMessage.content = assistantMessage.content.replace(/(\]\(https?:\/\/[^\)]+)\)+(\))/g, '$1$2');
-      
-      // Also fix any standalone URLs with trailing )
       assistantMessage.content = assistantMessage.content.replace(/(https?:\/\/[^\s\)]+)\)+(?!\))/g, '$1');
     }
 
@@ -1555,6 +1504,6 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
 console.log("🚪 Binding to PORT:", PORT);
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);  // ← FIXED
+  console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
 
