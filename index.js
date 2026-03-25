@@ -166,7 +166,7 @@ async function getESPNStats(query) {
   console.log(`🔧 Using ESPN tool: ${toolName}`, args);
   
   const payload = { name: toolName, arguments: args };
-  const result = await fetchJson(ESPN_MCP_URL, payload, 7000, "tools/call");
+  const result = await fetchJson(ESPN_MCP_URL, payload, 15000, "tools/call");
   
   console.log(`📊 ESPN Result - ok: ${result.ok}, status: ${result.status}`);
   
@@ -492,7 +492,7 @@ async function getGymnastics(query) {
   console.log(`🎯 Detected gender: ${gender}`);
   
   let toolName = null;
-  let args = { year: "2025" };
+  let args = { year: "2026" };
   
   if (/score|result|meet|final/i.test(query)) {
     toolName = `get_${gender}_gymnastics_scores`;
