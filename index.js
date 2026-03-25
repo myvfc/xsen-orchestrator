@@ -442,9 +442,32 @@ async function getNCAAWomensSports(query) {
       } else {
         args.month = String(new Date().getMonth() + 1).padStart(2, '0');
       }
-    } else {
-      args.year = String(new Date().getFullYear());
-      args.month = String(new Date().getMonth() + 1).padStart(2, '0');
+   } else {
+      const now = new Date();
+      const month = now.getMonth() + 1;
+
+      if (sport === 'volleyball' || sport === 'soccer') {
+        if (month >= 8) {
+          args.year = String(now.getFullYear());
+          args.month = String(month).padStart(2, '0');
+        } else {
+          args.year = String(now.getFullYear() - 1);
+          args.month = '11';
+        }
+      } else if (sport === 'softball') {
+        if (month >= 2 && month <= 5) {
+          args.year = String(now.getFullYear());
+          args.month = String(month).padStart(2, '0');
+        } else {
+          args.year = month > 5
+            ? String(now.getFullYear())
+            : String(now.getFullYear() - 1);
+          args.month = '04';
+        }
+      } else {
+        args.year = String(now.getFullYear());
+        args.month = String(month).padStart(2, '0');
+      }
     }
   }
   else if (/ranking|ranked|poll|top 25/i.test(query)) {
