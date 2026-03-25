@@ -486,7 +486,7 @@ async function getNCAAWomensSports(query) {
   console.log(`🔧 Using NCAA Women's tool: ${toolName}`, args);
   
   const payload = { name: toolName, arguments: args };
-  const result = await fetchJson(NCAA_WOMENS_MCP_URL, payload, 7000, "tools/call");
+  const result = await fetchJson(NCAA_WOMENS_MCP_URL, payload, 30000, "tools/call");
   
   console.log(`📊 NCAA Women's Result - ok: ${result.ok}, status: ${result.status}`);
   
