@@ -492,7 +492,7 @@ async function getGymnastics(query) {
   console.log(`🎯 Detected gender: ${gender}`);
   
   let toolName = null;
-  let args = { year: "2026" };
+ let args = { year: String(new Date().getFullYear()) };
   
   if (/score|result|meet|final/i.test(query)) {
     toolName = `get_${gender}_gymnastics_scores`;
