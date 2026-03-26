@@ -1339,7 +1339,7 @@ app.post("/chat", async (req, res) => {
     }
 
     session.chat.push({ role: "user", content: rawText });
-    session.chat = session.chat.slice(-10);
+    session.chat = session.chat.slice(-4);
 
     const messages = [
       {
