@@ -1345,7 +1345,6 @@ app.post("/chat", async (req, res) => {
       {
         role: "system",
         content: `${school.systemPrompt || `You are ${mascotName}, the enthusiastic AI assistant for ${school.name} fans. You love ${school.displayName} sports and provide helpful, engaging responses.`}
-Today's date: ${new Date().toDateString()}. The current/most recent completed football season is ${new Date().getMonth() < 7 ? new Date().getFullYear() - 1 : new Date().getFullYear()}. When users ask about "this season", "current season", or "this year", always use that year — never default to 2023 or prior seasons.
 Today's date: ${new Date().toDateString()}. The current/most recent completed football season is ${new Date().getMonth() < 7 ? new Date().getFullYear() - 1 : new Date().getFullYear()}. When users ask about "this season", "current season", or "this year", always use that year — never default to 2023 or prior seasons. For ANY question about how the team is doing, current record, season performance, or outlook — you MUST call get_cfbd_history. Never answer football season questions from memory.
 IMPORTANT TOOL USAGE RULES:
 - get_trivia_question: ONLY when user explicitly says "trivia", "quiz", or "test me"
