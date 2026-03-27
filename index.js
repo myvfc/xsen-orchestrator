@@ -170,9 +170,9 @@ async function getESPNStats(query) {
   
   console.log(`📊 ESPN Result - ok: ${result.ok}, status: ${result.status}`);
   
- if (result.ok && !result.json?.error) {
+  if (result.ok && !result.json?.error) {
     const responseText = extractMcpText(result.json) || result.text || "";
-    console.log(`✅ CFBD Response:`, responseText.substring(0, 200));
+    console.log(`✅ ESPN Response:`, responseText.substring(0, 200));
     if (toolName === "get_schedule" && responseText && !responseText.includes("TBD") && !responseText.includes("upcoming")) {
       return { data: responseText + "\n\nNote: This is the completed 2025 season schedule. The 2026 schedule has not been released yet." };
     }
@@ -521,7 +521,7 @@ async function getGymnastics(query) {
   console.log(`🎯 Detected gender: ${gender}`);
   
   let toolName = null;
- let args = { year: String(new Date().getFullYear()) };
+  let args = { year: String(new Date().getFullYear()) };
   
   if (/score|result|meet|final/i.test(query)) {
     toolName = `get_${gender}_gymnastics_scores`;
@@ -596,7 +596,6 @@ async function getSchoolAthletics(query) {
   return await fetchSchoolData(school, toolName, args, fetchJson, extractMcpText);
 }
 
-// ─── CHANGE 1: getSchoolNews function ────────────────────────────────────────
 async function getSchoolNews(query, schoolId) {
   console.log(`\n📰 School News Request: "${query}" for school: ${schoolId}`);
 
@@ -636,6 +635,11 @@ async function getSchoolNews(query, schoolId) {
     console.error('❌ School news error:', err);
     return { error: err.message };
   }
+}
+
+// ─── PRE-ROUTING: NEWS INTENT DETECTION ──────────────────────────────────────
+function isNewsQuery(text = "") {
+  return /\b(latest news|breaking news|recent news|what'?s new|any news|news today|football news|softball news|baseball news|basketball news|gymnastics news|volleyball news|soccer news|wrestling news|injury report|who is hurt|who'?s hurt|who is out|who'?s out|roster move|transfer portal|transfer news|recruiting news|update|updates)\b/i.test(text);
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -740,7 +744,7 @@ const tools = [
     type: "function",
     function: {
       name: "get_school_athletics",
-      description: "Get rosters, player bios, schedules, and team news directly from school athletics websites. Use for ROSTER queries, PLAYER BIO lookups, and TEAM NEWS. Available for: Oklahoma (OU, Sooners), NMHU (Highlands), WTAMU (Buffs).IMPORTANT: For OU scores/stats/rankings use ESPN/CFBD/NCAA tools instead. Use this tool for rosters, player bios, team news, AND schedules when other tools return no data.",
+      description: "Get rosters, player bios, schedules, and team news directly from school athletics websites. Use for ROSTER queries, PLAYER BIO lookups, and TEAM NEWS. Available for: Oklahoma (OU, Sooners), NMHU (Highlands), WTAMU (Buffs). IMPORTANT: For OU scores/stats/rankings use ESPN/CFBD/NCAA tools instead. Use this tool for rosters, player bios, team news, AND schedules when other tools return no data.",
       parameters: {
         type: "object",
         properties: {
@@ -750,7 +754,6 @@ const tools = [
       }
     }
   },
-  // ─── CHANGE 2: get_school_news tool ──────────────────────────────────────
   {
     type: "function",
     function: {
@@ -765,7 +768,6 @@ const tools = [
       }
     }
   }
-  // ─────────────────────────────────────────────────────────────────────────
 ];
 
 /* ------------------------------------------------------------------ */
@@ -1388,6 +1390,16 @@ app.post("/chat", async (req, res) => {
       return res.json({ response: `${greeting} What can I help you with?` });
     }
 
+    // ─── PRE-ROUTING: bypass GPT for news queries ─────────────────
+    if (isNewsQuery(rawText)) {
+      console.log(`📰 Pre-routing news query: "${rawText}"`);
+      const newsResult = await getSchoolNews(rawText, schoolId);
+      const newsText = newsResult.data || "No current news available. Check soonersports.com for the latest.";
+      await logMessages(sessionId, schoolId, rawText, newsText, 0);
+      return res.json({ response: newsText });
+    }
+    // ─────────────────────────────────────────────────────────────
+
     if (!sessions.has(sessionId)) sessions.set(sessionId, { chat: [] });
     const session = sessions.get(sessionId);
 
@@ -1432,10 +1444,9 @@ IMPORTANT GYMNASTICS NOTE: Women's gymnastics has individual event rankings (vau
 
 When tools return errors, acknowledge the issue and provide what information you can from your general knowledge about OU sports. When get_cfbd_history returns a completed season schedule with W/L results, present it as the most recent completed season and note that the next season schedule will be available closer to fall.
 Common queries:
-- Any query about latest news, recent news, or [sport] news → use get_school_news
 - Any question about a specific player, position, or starter → use get_school_athletics
 - "what's the score?" → use get_espn_stats
-- "OU vs Texas all-time" → use get_cfbd_history  
+- "OU vs Texas all-time" → use get_cfbd_history
 - "John Mateer stats 2025" → use get_cfbd_history (player season stats)
 - "OU football schedule" → use get_cfbd_history
 - "what games does OU have coming up" → use get_cfbd_history
@@ -1469,7 +1480,7 @@ Common queries:
 
 GYMNASTICS FUN FACT: Both OU men's and women's gymnastics teams are currently ranked #1 in the nation! This is incredibly rare and worth celebrating!
 
-Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS end every response with the SUGGESTED: block from your persona prompt — no exceptions, even when data is sparse.
+Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS end every response with the SUGGESTED: block from your persona prompt — no exceptions, even when data is sparse.`
       },
       ...session.chat
     ];
@@ -1554,7 +1565,6 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS e
             }
             break;
 
-          // ─── CHANGE 3: get_school_news case ────────────────────────────
           case "get_school_news":
             console.log(`📰 School news for: "${functionArgs.query}"`);
             functionResult = await getSchoolNews(functionArgs.query, schoolId);
@@ -1562,7 +1572,6 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS e
               functionResult.userMessage = "I'm having trouble accessing the latest news right now.";
             }
             break;
-          // ───────────────────────────────────────────────────────────────
           
           default:
             functionResult = { error: "Unknown function" };
