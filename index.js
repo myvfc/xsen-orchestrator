@@ -621,7 +621,7 @@ const tools = [
     type: "function",
     function: {
       name: "get_espn_stats",
-      description: "Get CURRENT/RECENT game scores, today's games, this week's schedule, and live stats from ESPN. Use for: current score, recent game, today's game, this week, latest game, schedule. DO NOT use for player season stats, all-time records, historical matchups, or conference standings.",
+      description: "Get CURRENT/RECENT game scores, today's games, and live stats from ESPN. Use for: current score, recent game, today's game, this week, latest game. DO NOT use for schedule queries — use get_cfbd_history for schedules. DO NOT use for player season stats, all-time records, historical matchups, or conference standings.",
       parameters: {
         type: "object",
         properties: {
