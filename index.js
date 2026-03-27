@@ -691,7 +691,7 @@ const tools = [
     type: "function",
     function: {
       name: "get_school_athletics",
-      description: "Get rosters, player bios, schedules, and team news directly from school athletics websites. Use for ROSTER queries, PLAYER BIO lookups, and TEAM NEWS. Available for: Oklahoma (OU, Sooners), NMHU (Highlands), WTAMU (Buffs). IMPORTANT: For OU scores/stats/rankings, use ESPN/CFBD/NCAA tools instead - this tool is ONLY for rosters and website content.",
+      description: "Get rosters, player bios, schedules, and team news directly from school athletics websites. Use for ROSTER queries, PLAYER BIO lookups, and TEAM NEWS. Available for: Oklahoma (OU, Sooners), NMHU (Highlands), WTAMU (Buffs).IMPORTANT: For OU scores/stats/rankings use ESPN/CFBD/NCAA tools instead. Use this tool for rosters, player bios, team news, AND schedules when other tools return no data.
       parameters: {
         type: "object",
         properties: {
@@ -1369,6 +1369,8 @@ Common queries:
 - "what's the score?" → use get_espn_stats
 - "OU vs Texas all-time" → use get_cfbd_history  
 - "John Mateer stats 2025" → use get_cfbd_history (player season stats)
+- "OU football schedule" → use get_school_athletics
+- "what games does OU have coming up" → use get_school_athletics
 - "basketball score" → use get_cfbd_basketball
 - "Sam Godwin stats" → use get_cfbd_basketball
 - "OU hoops schedule" → use get_cfbd_basketball
