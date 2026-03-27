@@ -317,6 +317,9 @@ async function getCFBDHistory(query) {
   if (result.ok && !result.json?.error) {
     const responseText = extractMcpText(result.json) || result.text || "";
     console.log(`✅ CFBD Response:`, responseText.substring(0, 200));
+    if (toolName === "get_schedule" && responseText && !responseText.includes("TBD") && !responseText.includes("upcoming")) {
+      return { data: responseText + "\n\nNote: This is the completed 2025 season schedule. The 2026 schedule has not been released yet." };
+    }
     return { data: responseText };
   } else {
     const errorMsg = result.json?.error?.message || result.text || "CFBD request failed";
@@ -593,6 +596,49 @@ async function getSchoolAthletics(query) {
   return await fetchSchoolData(school, toolName, args, fetchJson, extractMcpText);
 }
 
+// ─── CHANGE 1: getSchoolNews function ────────────────────────────────────────
+async function getSchoolNews(query, schoolId) {
+  console.log(`\n📰 School News Request: "${query}" for school: ${schoolId}`);
+
+  try {
+    const school = schoolId || 'oklahoma';
+
+    const { data, error } = await supabase
+      .from('xsen_news')
+      .select('*')
+      .eq('active', true)
+      .or(`school.eq.${school},school.eq.ALL`)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      return { data: "No current news or updates available right now. Check soonersports.com for the latest." };
+    }
+
+    const now = new Date();
+    const valid = data.filter(n => !n.expires_at || new Date(n.expires_at) > now);
+
+    if (!valid.length) {
+      return { data: "No current news or updates available right now. Check soonersports.com for the latest." };
+    }
+
+    const formatted = valid.map(n => {
+      const date = new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return `[${n.category.toUpperCase()}] ${n.title}\n${n.body}${n.source ? `\nSource: ${n.source}` : ''}\n(${date})`;
+    }).join('\n\n---\n\n');
+
+    console.log(`✅ Found ${valid.length} news items`);
+    return { data: formatted };
+
+  } catch (err) {
+    console.error('❌ School news error:', err);
+    return { error: err.message };
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 /* ------------------------------------------------------------------ */
 /*                      OPENAI FUNCTION TOOLS                         */
 /* ------------------------------------------------------------------ */
@@ -703,7 +749,23 @@ const tools = [
         required: ["query"]
       }
     }
+  },
+  // ─── CHANGE 2: get_school_news tool ──────────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "get_school_news",
+      description: "Get the latest breaking news, injury reports, roster moves, recruiting updates, and game updates for the school. Use for ANY query about: injuries, who is hurt, who is out, roster changes, transfers, recruiting news, breaking news, latest updates, game status, weather delays. ALWAYS use this before answering injury or roster move questions.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The news query (e.g., 'injury report', 'who is out this week', 'latest roster news')" }
+        },
+        required: ["query"]
+      }
+    }
   }
+  // ─────────────────────────────────────────────────────────────────────────
 ];
 
 /* ------------------------------------------------------------------ */
@@ -1358,6 +1420,7 @@ IMPORTANT TOOL USAGE RULES:
 - get_ncaa_womens_sports: For WOMEN'S SPORTS scores/schedules/rankings/stats (NOT rosters)
 - get_gymnastics: For GYMNASTICS queries (both men's and women's) - BOTH OU TEAMS ARE #1!
 - get_school_athletics: For ROSTERS, PLAYER BIOS, and TEAM NEWS from athletics websites
+- get_school_news: For INJURY REPORTS, BREAKING NEWS, ROSTER MOVES, TRANSFERS, and RECRUITING UPDATES
 
 SUPPORTED SCHOOLS (for get_school_athletics):
 - Oklahoma (OU, Sooners) - rosters, bios, news from soonersports.com
@@ -1374,6 +1437,7 @@ Common queries:
 - "John Mateer stats 2025" → use get_cfbd_history (player season stats)
 - "OU football schedule" → use get_cfbd_history
 - "what games does OU have coming up" → use get_cfbd_history
+- "upcoming games" → use get_cfbd_history ONLY, do not also call get_espn_stats
 - "basketball score" → use get_cfbd_basketball
 - "Sam Godwin stats" → use get_cfbd_basketball
 - "OU hoops schedule" → use get_cfbd_basketball
@@ -1393,7 +1457,13 @@ Common queries:
 - "history" (alone) → ask what kind of history they want
 - "trivia" → use get_trivia_question
 - "show me highlights" → use search_videos
-- "upcoming games" → use get_cfbd_history ONLY, do not also call get_espn_stats
+- "injury report" → use get_school_news
+- "who is hurt" → use get_school_news
+- "who is out" → use get_school_news
+- "latest news" → use get_school_news
+- "roster move" → use get_school_news
+- "transfer" → use get_school_news
+- "breaking news" → use get_school_news
 
 GYMNASTICS FUN FACT: Both OU men's and women's gymnastics teams are currently ranked #1 in the nation! This is incredibly rare and worth celebrating!
 
@@ -1481,6 +1551,16 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
               functionResult.userMessage = "I'm having trouble accessing that school's athletics data right now.";
             }
             break;
+
+          // ─── CHANGE 3: get_school_news case ────────────────────────────
+          case "get_school_news":
+            console.log(`📰 School news for: "${functionArgs.query}"`);
+            functionResult = await getSchoolNews(functionArgs.query, schoolId);
+            if (functionResult.error) {
+              functionResult.userMessage = "I'm having trouble accessing the latest news right now.";
+            }
+            break;
+          // ───────────────────────────────────────────────────────────────
           
           default:
             functionResult = { error: "Unknown function" };
@@ -1535,4 +1615,3 @@ console.log("🚪 Binding to PORT:", PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
-
