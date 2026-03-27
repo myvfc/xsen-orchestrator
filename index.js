@@ -1349,7 +1349,7 @@ Today's date: ${new Date().toDateString()}. The current/most recent completed fo
 IMPORTANT TOOL USAGE RULES:
 - get_trivia_question: ONLY when user explicitly says "trivia", "quiz", or "test me"
 - search_videos: ONLY when user asks for "video", "highlight", "watch", or "show me"
-- get_espn_stats: For CURRENT/RECENT games (today, this week, latest score)
+- get_espn_stats: For CURRENT/RECENT games (today, this week, latest score). DO NOT use for schedule queries if get_cfbd_history already returned data.
 - get_cfbd_history: For FOOTBALL all-time records, historical matchups, "vs", series records, AND PLAYER SEASON STATS
 - get_cfbd_basketball: For ANY BASKETBALL queries (scores, stats, schedule, rankings, roster)
 - get_ncaa_womens_sports: For WOMEN'S SPORTS scores/schedules/rankings/stats (NOT rosters)
@@ -1390,6 +1390,7 @@ Common queries:
 - "history" (alone) → ask what kind of history they want
 - "trivia" → use get_trivia_question
 - "show me highlights" → use search_videos
+- "upcoming games" → use get_cfbd_history ONLY, do not also call get_espn_stats
 
 GYMNASTICS FUN FACT: Both OU men's and women's gymnastics teams are currently ranked #1 in the nation! This is incredibly rare and worth celebrating!
 
