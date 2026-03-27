@@ -1468,7 +1468,7 @@ Common queries:
 
 GYMNASTICS FUN FACT: Both OU men's and women's gymnastics teams are currently ranked #1 in the nation! This is incredibly rare and worth celebrating!
 
-Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately.`
+Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS end every response with the SUGGESTED: block from your persona prompt — no exceptions, even when data is sparse.
       },
       ...session.chat
     ];
