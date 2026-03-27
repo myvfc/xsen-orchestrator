@@ -1363,8 +1363,7 @@ SUPPORTED SCHOOLS (for get_school_athletics):
 
 IMPORTANT GYMNASTICS NOTE: Women's gymnastics has individual event rankings (vault, bars, beam, floor). Men's gymnastics only has OVERALL TEAM rankings - do not make up individual event rankings for men's gymnastics.
 
-When tools return errors, acknowledge the issue and provide what information you can from your general knowledge about OU sports.
-
+When tools return errors, acknowledge the issue and provide what information you can from your general knowledge about OU sports. When get_cfbd_history returns a completed season schedule with W/L results, present it as the most recent completed season and note that the next season schedule will be available closer to fall.
 Common queries:
 - "what's the score?" → use get_espn_stats
 - "OU vs Texas all-time" → use get_cfbd_history  
