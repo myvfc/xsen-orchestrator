@@ -34,7 +34,7 @@
       "displayName": "OSU",
       "mascotName": "Pistol Pete",
       "greeting": "Go Pokes!",
-      "mcpUrl": "https://ou-athletics-mcp-production.up.railway.app",
+      "mcpUrl": "mcpUrl": "https://okstate-athletics-mcp-production-b9c3.up.railway.app",
       "sports": ["football", "basketball", "baseball", "softball"],
       "keywords": ["okstate", "osu", "oklahoma state", "cowboys", "pokes", "pistol pete"],
       "isDefault": false,
