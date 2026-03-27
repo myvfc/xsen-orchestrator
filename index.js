@@ -612,7 +612,7 @@ async function getSchoolNews(query, schoolId) {
       .limit(5);
 
     if (error) throw error;
-
+    console.log(`📰 Supabase query result: ${data?.length} rows, error: ${JSON.stringify(error)}`);
     if (!data || data.length === 0) {
       return { data: "No current news or updates available right now. Check soonersports.com for the latest." };
     }
