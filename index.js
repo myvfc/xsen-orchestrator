@@ -1368,6 +1368,9 @@ IMPORTANT GYMNASTICS NOTE: Women's gymnastics has individual event rankings (vau
 
 When tools return errors, acknowledge the issue and provide what information you can from your general knowledge about OU sports. When get_cfbd_history returns a completed season schedule with W/L results, present it as the most recent completed season and note that the next season schedule will be available closer to fall.
 Common queries:
+- "who is the starting QB" → use get_school_athletics for roster
+- "who was our QB last year" → use get_cfbd_history for 2025 season
+- "starting QB this week" → use get_school_athletics, ignore "this week" framing
 - "what's the score?" → use get_espn_stats
 - "OU vs Texas all-time" → use get_cfbd_history  
 - "John Mateer stats 2025" → use get_cfbd_history (player season stats)
