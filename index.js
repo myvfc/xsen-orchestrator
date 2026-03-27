@@ -691,7 +691,7 @@ const tools = [
     type: "function",
     function: {
       name: "get_school_athletics",
-      description: "Get rosters, player bios, schedules, and team news directly from school athletics websites. Use for ROSTER queries, PLAYER BIO lookups, and TEAM NEWS. Available for: Oklahoma (OU, Sooners), NMHU (Highlands), WTAMU (Buffs).IMPORTANT: For OU scores/stats/rankings use ESPN/CFBD/NCAA tools instead. Use this tool for rosters, player bios, team news, AND schedules when other tools return no data.
+      description: "Get rosters, player bios, schedules, and team news directly from school athletics websites. Use for ROSTER queries, PLAYER BIO lookups, and TEAM NEWS. Available for: Oklahoma (OU, Sooners), NMHU (Highlands), WTAMU (Buffs).IMPORTANT: For OU scores/stats/rankings use ESPN/CFBD/NCAA tools instead. Use this tool for rosters, player bios, team news, AND schedules when other tools return no data.",
       parameters: {
         type: "object",
         properties: {
