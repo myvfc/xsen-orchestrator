@@ -1371,7 +1371,6 @@ Common queries:
 - "John Mateer stats 2025" → use get_cfbd_history (player season stats)
 - "OU football schedule" → use get_cfbd_history
 - "what games does OU have coming up" → use get_cfbd_history
-- "what games does OU have coming up" → use get_school_athletics
 - "basketball score" → use get_cfbd_basketball
 - "Sam Godwin stats" → use get_cfbd_basketball
 - "OU hoops schedule" → use get_cfbd_basketball
