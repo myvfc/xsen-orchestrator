@@ -170,9 +170,12 @@ async function getESPNStats(query) {
   
   console.log(`📊 ESPN Result - ok: ${result.ok}, status: ${result.status}`);
   
-  if (result.ok && !result.json?.error) {
+ if (result.ok && !result.json?.error) {
     const responseText = extractMcpText(result.json) || result.text || "";
-    console.log(`✅ ESPN Response:`, responseText.substring(0, 200));
+    console.log(`✅ CFBD Response:`, responseText.substring(0, 200));
+    if (toolName === "get_schedule" && responseText && !responseText.includes("TBD") && !responseText.includes("upcoming")) {
+      return { data: responseText + "\n\nNote: This is the completed 2025 season schedule. The 2026 schedule has not been released yet." };
+    }
     return { data: responseText };
   } else {
     const errorMsg = result.json?.error?.message || result.text || "ESPN request failed";
