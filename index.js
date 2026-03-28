@@ -68,29 +68,30 @@ async function getTriviaQuestion() {
   };
 }
 
-async function searchVideos(query) {
+async function searchVideos(query, schoolId) {
   if (!VIDEO_AGENT_URL) {
     return { error: "Video service not configured" };
   }
-  
+
   const refinedQuery = refineVideoQuery(query);
-  const fetchUrl = `${VIDEO_AGENT_URL}?query=${encodeURIComponent(refinedQuery)}&limit=3&ts=${Date.now()}`;
-  
+  const school = schoolId || 'sooners';
+  const fetchUrl = `${VIDEO_AGENT_URL}?query=${encodeURIComponent(refinedQuery)}&school=${school}&limit=3&ts=${Date.now()}`;
+
   try {
     const headers = {};
     if (process.env.VIDEO_AGENT_KEY) {
       headers["Authorization"] = `Bearer ${process.env.VIDEO_AGENT_KEY}`;
     }
-    
+
     const r = await fetch(fetchUrl, { headers, signal: AbortSignal.timeout(7000) });
-    
+
     if (!r.ok) {
       return { error: `Video service returned ${r.status}` };
     }
-    
+
     const data = await r.json();
     const results = Array.isArray(data?.results) ? data.results : [];
-    
+
     return { videos: results };
   } catch (err) {
     return { error: err.message };
@@ -1515,10 +1516,10 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS e
             }
             break;
           
-          case "search_videos":
-            console.log(`🎬 Video search for: "${functionArgs.query}"`);
-            functionResult = await searchVideos(functionArgs.query);
-            break;
+         case "search_videos":
+           console.log(`🎬 Video search for: "${functionArgs.query}"`);
+           functionResult = await searchVideos(functionArgs.query, schoolId);
+           break;
           
           case "get_espn_stats":
             console.log(`📊 ESPN stats for: "${functionArgs.query}"`);
