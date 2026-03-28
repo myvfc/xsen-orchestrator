@@ -48,7 +48,8 @@ app.get("/", (req, res) => {
 /*                         TOOL FUNCTIONS FOR LLM                      */
 /* ------------------------------------------------------------------ */
 
-async function getTriviaQuestion() {
+async function getTriviaQuestion(schoolId) {
+  const TRIVIA = loadTrivia(schoolId || 'sooners');
   if (!TRIVIA.length) {
     return { error: "Trivia not loaded" };
   }
@@ -815,16 +816,22 @@ console.log("  OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "✅ Set" : "❌ N
 /*                            LOAD TRIVIA                              */
 /* ------------------------------------------------------------------ */
 
-let TRIVIA = [];
-
-try {
-  const triviaPath = path.join(__dirname, "trivia.json");
-  const raw = fs.readFileSync(triviaPath, "utf-8");
-  TRIVIA = JSON.parse(raw);
-  if (!Array.isArray(TRIVIA)) TRIVIA = [];
-  console.log(`🧠 Loaded ${TRIVIA.length} trivia questions`);
-} catch (err) {
-  console.error("❌ Failed to load trivia.json", err?.message || err);
+function loadTrivia(schoolId) {
+  try {
+    const triviaPath = path.join(__dirname, "trivia", `${schoolId}.json`);
+    const raw = fs.readFileSync(triviaPath, "utf-8");
+    const data = JSON.parse(raw);
+    console.log(`🧠 Loaded ${data.length} trivia questions for ${schoolId}`);
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    try {
+      const defaultPath = path.join(__dirname, "trivia", "sooners.json");
+      const raw = fs.readFileSync(defaultPath, "utf-8");
+      return JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1507,8 +1514,8 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS e
         let functionResult;
 
         switch (functionName) {
-          case "get_trivia_question":
-            functionResult = await getTriviaQuestion();
+         case "get_trivia_question":
+            functionResult = await getTriviaQuestion(schoolId);
             if (!functionResult.error) {
               session.active = true;
               session.correctIndex = functionResult.correctIndex;
