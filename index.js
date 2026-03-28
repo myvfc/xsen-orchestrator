@@ -55,7 +55,7 @@ async function getTriviaQuestion(schoolId) {
   }
   
   const q = TRIVIA[Math.floor(Math.random() * TRIVIA.length)];
-  const mcq = buildMCQ(q);
+  const mcq = buildMCQ(q, TRIVIA);
   
   if (!mcq.question || !mcq.options?.length || mcq.correctIndex < 0) {
     return { error: "Failed to generate trivia question" };
