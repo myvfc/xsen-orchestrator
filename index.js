@@ -873,7 +873,7 @@ function normalizeAnswer(s) {
   return sanitize(s).replace(/\s+/g, " ").toLowerCase();
 }
 
-function buildMCQ(q) {
+function buildMCQ(q, TRIVIA) {
   const correct = sanitize(q?.answer);
   const correctNorm = normalizeAnswer(correct);
 
