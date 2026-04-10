@@ -575,9 +575,26 @@ async function getSchoolAthletics(query) {
     return { error: "Could not determine which school you're asking about" };
   }
   
-  const toolName = parseToolName(query);
+  // ── Map new tool names to what the MCP server understands ──
+  const rawToolName = parseToolName(query);
   const sport = parseSport(query);
-  
+
+  // Translate intent-based queries to specific MCP tools
+  let toolName = rawToolName;
+  if (/depth.?chart|who.?s starting|starter|starters/i.test(query)) {
+    toolName = "get_depth_chart";
+  } else if (/injur|who.?s hurt|who.?s out|injury report/i.test(query)) {
+    toolName = "get_injuries";
+  } else if (/standing|conference.?rank|where.?in.?conference/i.test(query)) {
+    toolName = "get_standings";
+  } else if (/stat leader|statistical leader|leading passer|leading rusher|leading scorer|top stats/i.test(query)) {
+    toolName = "get_player_stats";
+  } else if (/team info|team details|colors|stadium|mascot/i.test(query)) {
+    toolName = "get_team_info";
+  } else if (/recruit|commits|signing class|class rank|who signed|who committed/i.test(query)) {
+    toolName = "get_recruiting";
+  }
+
   console.log(`🎯 School: ${school.displayName}, Tool: ${toolName}, Sport: ${sport}`);
   
   let args = { sport: sport };
@@ -593,6 +610,18 @@ async function getSchoolAthletics(query) {
   
   if (toolName === "get_news") {
     args.limit = 5;
+  }
+
+  // Recruiting has no sport arg
+  if (toolName === "get_recruiting" || toolName === "get_team_info") {
+    args = {};
+  }
+
+  // get_recruiting_by_position — extract position from query
+  if (/recruit.*\b(qb|rb|wr|te|ol|dl|lb|db|cb|s|k|p|quarterback|running back|wide receiver|tight end|lineman|linebacker|defensive back|kicker|punter)\b/i.test(query)) {
+    toolName = "get_recruiting_by_position";
+    const posMatch = query.match(/\b(qb|rb|wr|te|ol|dl|lb|db|cb|quarterback|running back|wide receiver|tight end|lineman|linebacker|defensive back|kicker|punter)\b/i);
+    args = { position: posMatch ? posMatch[1].toUpperCase() : 'QB' };
   }
   
   return await fetchSchoolData(school, toolName, args, fetchJson, extractMcpText);
@@ -746,11 +775,12 @@ const tools = [
     type: "function",
     function: {
       name: "get_school_athletics",
-      description: "Get rosters, player bios, schedules, and team news directly from school athletics websites. Use for ROSTER queries, PLAYER BIO lookups, and TEAM NEWS. Available for: Oklahoma (OU, Sooners), NMHU (Highlands), WTAMU (Buffs). IMPORTANT: For OU scores/stats/rankings use ESPN/CFBD/NCAA tools instead. Use this tool for rosters, player bios, team news, AND schedules when other tools return no data.",
+      // ── UPDATED: expanded to cover all new athletics.js capabilities ──
+      description: "Get school athletics data via ESPN/CFBD APIs. Use for: ROSTERS (player name, position, year, hometown), PLAYER BIOS, DEPTH CHARTS (who is starting at each position), INJURY REPORTS (who is hurt or out), CONFERENCE STANDINGS, SEASON STATS (statistical leaders), TEAM INFO (record, stadium, colors, mascot), and FOOTBALL RECRUITING (class ranking, commits, star ratings, positions). Available for: Oklahoma (OU, Sooners). NOTE: Recruiting data is FOOTBALL ONLY — do not use for basketball recruiting. For OU scores/rankings use ESPN/CFBD tools instead.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "The query about school rosters/bios/news (e.g., 'OU softball roster', 'NMHU football player bios', 'WTAMU basketball news')" }
+          query: { type: "string", description: "The query (e.g., 'OU football depth chart', 'who is starting at QB', 'injury report', 'football recruiting class', 'top commits', 'conference standings', 'statistical leaders')" }
         },
         required: ["query"]
       }
@@ -1440,13 +1470,25 @@ IMPORTANT TOOL USAGE RULES:
 - get_cfbd_basketball: For ANY BASKETBALL queries (scores, stats, schedule, rankings, roster)
 - get_ncaa_womens_sports: For WOMEN'S SPORTS scores/schedules/rankings/stats (NOT rosters)
 - get_gymnastics: For GYMNASTICS queries (both men's and women's) - BOTH OU TEAMS ARE #1!
-- get_school_athletics: For ROSTERS, PLAYER BIOS, and TEAM NEWS from athletics websites
-- get_school_news: For INJURY REPORTS, BREAKING NEWS, ROSTER MOVES, TRANSFERS, and RECRUITING UPDATES
+- get_school_athletics: For ROSTERS, PLAYER BIOS, DEPTH CHARTS, INJURY REPORTS, STANDINGS, PLAYER STATS, TEAM INFO, and FOOTBALL RECRUITING
+- get_school_news: For BREAKING NEWS, ROSTER MOVES, TRANSFERS, and RECRUITING UPDATES from our news feed
 
 SUPPORTED SCHOOLS (for get_school_athletics):
-- Oklahoma (OU, Sooners) - rosters, bios, news from soonersports.com
-- New Mexico Highlands (NMHU, Highlands, Cowboys)
-- West Texas A&M (WTAMU, West Texas, Buffs)
+- Oklahoma (OU, Sooners) - data via ESPN/CFBD APIs
+
+IMPORTANT — get_school_athletics routing:
+- "who is starting at [position]" / "depth chart" / "starters" → use get_school_athletics
+- "who is hurt" / "injury report" / "who is out" → use get_school_news FIRST, then get_school_athletics if no results
+- "conference standings" / "where is OU in the Big 12" → use get_school_athletics
+- "statistical leaders" / "leading passer" / "leading rusher" → use get_school_athletics
+- "team info" / "stadium" / "team colors" → use get_school_athletics
+- "recruiting class" / "top commits" / "who did OU sign" / "recruiting ranking" → use get_school_athletics
+- "recruiting at [position]" / "QB recruits" / "WR commits" → use get_school_athletics
+
+IMPORTANT — RECRUITING IS FOOTBALL ONLY:
+get_school_athletics recruiting data covers FOOTBALL recruiting only via CFBD API.
+If asked about basketball recruiting or any other sport's recruiting, respond:
+"Basketball recruiting data isn't available in my current data sources — for the latest OU basketball recruiting news, check soonersports.com or 247Sports."
 
 IMPORTANT GYMNASTICS NOTE: Women's gymnastics has individual event rankings (vault, bars, beam, floor). Men's gymnastics only has OVERALL TEAM rankings - do not make up individual event rankings for men's gymnastics.
 
@@ -1473,8 +1515,6 @@ Common queries:
 - "OU softball roster" → use get_school_athletics
 - "player bio" → use get_school_athletics
 - "team news" → use get_school_athletics
-- "NMHU softball roster" → use get_school_athletics
-- "West Texas A&M football schedule" → use get_school_athletics
 - "history" (alone) → ask what kind of history they want
 - "trivia" → use get_trivia_question
 - "show me highlights" → use search_videos
@@ -1485,6 +1525,13 @@ Common queries:
 - "roster move" → use get_school_news
 - "transfer" → use get_school_news
 - "breaking news" → use get_school_news
+- "who is starting at QB" → use get_school_athletics (depth chart)
+- "depth chart" → use get_school_athletics
+- "conference standings" → use get_school_athletics
+- "statistical leaders" → use get_school_athletics
+- "recruiting class" → use get_school_athletics (FOOTBALL ONLY)
+- "top commits" → use get_school_athletics (FOOTBALL ONLY)
+- "QB recruits" → use get_school_athletics (FOOTBALL ONLY)
 
 GYMNASTICS FUN FACT: Both OU men's and women's gymnastics teams are currently ranked #1 in the nation! This is incredibly rare and worth celebrating!
 
@@ -1634,3 +1681,4 @@ console.log("🚪 Binding to PORT:", PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
+
