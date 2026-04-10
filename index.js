@@ -612,8 +612,13 @@ async function getSchoolAthletics(query) {
     args.limit = 5;
   }
 
-  // Recruiting has no sport arg
-  if (toolName === "get_recruiting" || toolName === "get_team_info") {
+  // Recruiting — no sport arg, but extract year if mentioned
+  if (toolName === "get_recruiting") {
+    const yearMatch = query.match(/\b(20\d{2})\b/);
+    args = yearMatch ? { year: parseInt(yearMatch[1]) } : {};
+  }
+
+  if (toolName === "get_team_info") {
     args = {};
   }
 
