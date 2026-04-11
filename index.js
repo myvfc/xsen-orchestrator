@@ -814,20 +814,26 @@ const tools = [
 /* ------------------------------------------------------------------ */
 
 // ─── VAPID / WEB PUSH SETUP ──────────────────────────────────────────────────
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    process.env.VAPID_EMAIL || 'mailto:admin@xsen.fun',
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-  );
-  console.log('✅ Web Push / VAPID configured');
-} else {
-  console.warn('⚠️ VAPID keys not set — push notifications disabled');
+let vapidConfigured = false;
+try {
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(
+      process.env.VAPID_EMAIL || 'mailto:admin@xsen.fun',
+      process.env.VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY
+    );
+    vapidConfigured = true;
+    console.log('✅ Web Push / VAPID configured');
+  } else {
+    console.warn('⚠️ VAPID keys not set — push notifications disabled');
+  }
+} catch (err) {
+  console.warn('⚠️ VAPID setup failed — push notifications disabled:', err.message);
 }
 
 // ─── SEND PUSH TO SCHOOL SUBSCRIBERS ─────────────────────────────────────────
 async function sendPushToSchool(schoolId, payload) {
-  if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) return { sent: 0, failed: 0 };
+  if (!vapidConfigured) return { sent: 0, failed: 0 };
 
   const { data: subs, error } = await supabase
     .from('push_subscriptions')
@@ -1864,5 +1870,6 @@ console.log("🚪 Binding to PORT:", PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
+
 
 
