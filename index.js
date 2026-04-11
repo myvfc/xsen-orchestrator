@@ -783,7 +783,7 @@ const tools = [
     function: {
       name: "get_school_athletics",
       // ── UPDATED: expanded to cover all new athletics.js capabilities ──
-      description: "Get school athletics data via ESPN/CFBD APIs. Use for: ROSTERS (player name, position, year, hometown), PLAYER BIOS, DEPTH CHARTS (who is starting at each position), INJURY REPORTS (who is hurt or out), CONFERENCE STANDINGS, SEASON STATS (statistical leaders), TEAM INFO (record, stadium, colors, mascot), and FOOTBALL RECRUITING (class ranking, commits, star ratings, positions). Available for: Oklahoma (OU, Sooners). NOTE: Recruiting data is FOOTBALL ONLY — do not use for basketball recruiting. For OU scores/rankings use ESPN/CFBD tools instead.",
+      description: "Get school athletics data via ESPN/CFBD APIs. Use for: ROSTERS, PLAYER BIOS, SCHEDULES (all sports — use this for any schedule query including football, basketball, baseball, softball, volleyball, soccer), DEPTH CHARTS, INJURY REPORTS, CONFERENCE STANDINGS, SEASON STATS, TEAM INFO, and FOOTBALL RECRUITING. Available for: Oklahoma (OU, Sooners). NOTE: Recruiting is FOOTBALL ONLY. For live/current scores use ESPN tools instead. ALWAYS use this for schedule queries — not get_cfbd_history.",
       parameters: {
         type: "object",
         properties: {
@@ -1571,7 +1571,7 @@ IMPORTANT TOOL USAGE RULES:
 - get_trivia_question: ONLY when user explicitly says "trivia", "quiz", or "test me"
 - search_videos: ONLY when user asks for "video", "highlight", "watch", or "show me"
 - get_espn_stats: For CURRENT/RECENT games (today, this week, latest score). DO NOT use for schedule queries if get_cfbd_history already returned data.
-- get_cfbd_history: For FOOTBALL all-time records, historical matchups, "vs", series records, AND PLAYER SEASON STATS
+- get_cfbd_history: For FOOTBALL all-time records, historical matchups, "vs", series records, AND PLAYER SEASON STATS. DO NOT use for schedules — use get_school_athletics instead
 - get_cfbd_basketball: For ANY BASKETBALL queries (scores, stats, schedule, rankings, roster)
 - get_ncaa_womens_sports: For WOMEN'S SPORTS scores/schedules/rankings/stats (NOT rosters)
 - get_gymnastics: For GYMNASTICS queries (both men's and women's) - BOTH OU TEAMS ARE #1!
@@ -1603,9 +1603,12 @@ Common queries:
 - "what's the score?" → use get_espn_stats
 - "OU vs Texas all-time" → use get_cfbd_history
 - "John Mateer stats 2025" → use get_cfbd_history (player season stats)
-- "OU football schedule" → use get_cfbd_history
-- "what games does OU have coming up" → use get_cfbd_history
-- "upcoming games" → use get_cfbd_history ONLY, do not also call get_espn_stats
+- "OU football schedule" → use get_school_athletics (ESPN has current + upcoming schedules for all sports)
+- "OU basketball schedule" → use get_school_athletics
+- "OU softball schedule" → use get_school_athletics
+- "what games does OU have coming up" → use get_school_athletics
+- "upcoming games" → use get_school_athletics ONLY, do not also call get_espn_stats
+- "schedule" (any sport) → use get_school_athletics
 - "basketball score" → use get_cfbd_basketball
 - "Sam Godwin stats" → use get_cfbd_basketball
 - "OU hoops schedule" → use get_cfbd_basketball
