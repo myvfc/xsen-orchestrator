@@ -1,4 +1,5 @@
 import express from "express";
+import webpush from 'web-push';
 import cors from "cors";
 import fs from "fs";
 import path from "path";
@@ -811,6 +812,98 @@ const tools = [
 /* ------------------------------------------------------------------ */
 /*                           HEARTBEAT                                 */
 /* ------------------------------------------------------------------ */
+
+// ─── VAPID / WEB PUSH SETUP ──────────────────────────────────────────────────
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    process.env.VAPID_EMAIL || 'mailto:admin@xsen.fun',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+  console.log('✅ Web Push / VAPID configured');
+} else {
+  console.warn('⚠️ VAPID keys not set — push notifications disabled');
+}
+
+// ─── SEND PUSH TO SCHOOL SUBSCRIBERS ─────────────────────────────────────────
+async function sendPushToSchool(schoolId, payload) {
+  if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) return { sent: 0, failed: 0 };
+
+  const { data: subs, error } = await supabase
+    .from('push_subscriptions')
+    .select('*')
+    .eq('school_id', schoolId)
+    .eq('active', true);
+
+  if (error || !subs?.length) {
+    console.log(`📭 No push subscribers for ${schoolId}`);
+    return { sent: 0, failed: 0 };
+  }
+
+  console.log(`📣 Sending push to ${subs.length} subscribers for ${schoolId}`);
+  let sent = 0, failed = 0;
+  const expired = [];
+
+  for (const sub of subs) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        JSON.stringify(payload)
+      );
+      sent++;
+    } catch (err) {
+      failed++;
+      if (err.statusCode === 410 || err.statusCode === 404) expired.push(sub.id);
+    }
+  }
+
+  if (expired.length) {
+    await supabase.from('push_subscriptions').update({ active: false }).in('id', expired);
+  }
+
+  console.log(`✅ Push complete — sent: ${sent}, failed: ${failed}`);
+  return { sent, failed };
+}
+
+// ─── YOUTUBE LIVE WATCHER ─────────────────────────────────────────────────────
+const liveStreamState = new Map();
+
+async function checkYouTubeLiveStreams() {
+  try {
+    const { data: stations } = await supabase
+      .from('xsen_stations')
+      .select('school, youtube_live_id')
+      .not('school', 'is', null);
+
+    if (!stations) return;
+
+    for (const station of stations) {
+      const schoolId     = station.school;
+      const newStreamId  = station.youtube_live_id || null;
+      const prevStreamId = liveStreamState.get(schoolId);
+
+      if (newStreamId && !prevStreamId) {
+        console.log(`🔴 Live stream detected for ${schoolId}`);
+        const names = { sooners: 'OU Sooners', okstate: 'OSU Cowboys', texas: 'Texas Longhorns' };
+        await sendPushToSchool(schoolId, {
+          title: '🔴 LIVE Now on XSEN!',
+          body:  `${names[schoolId] || schoolId} is streaming live — tune in!`,
+          icon:  '/icons/icon-192x192.png',
+          tag:   'xsen-live',
+          url:   `/${schoolId}/`
+        });
+      }
+
+      liveStreamState.set(schoolId, newStreamId);
+    }
+  } catch (err) {
+    console.error('❌ YouTube Live watcher error:', err.message);
+  }
+}
+
+setInterval(checkYouTubeLiveStreams, 30_000);
+setTimeout(checkYouTubeLiveStreams, 8000);
+console.log('📺 YouTube Live watcher started');
 
 setInterval(() => {
   console.log("💓 XSEN heartbeat", new Date().toISOString());
@@ -1682,9 +1775,94 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS e
 /*                           START SERVER                              */
 /* ------------------------------------------------------------------ */
 
+
+// ─── PUSH NOTIFICATION ROUTES ─────────────────────────────────────────────────
+
+app.get('/push/vapid-public-key', (req, res) => {
+  const key = process.env.VAPID_PUBLIC_KEY;
+  if (!key) return res.status(503).json({ error: 'Push not configured' });
+  res.json({ key });
+});
+
+app.post('/push/subscribe', async (req, res) => {
+  try {
+    const { subscription, schoolId } = req.body;
+    if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+      return res.status(400).json({ error: 'Invalid subscription' });
+    }
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .upsert({
+        school_id:  schoolId || 'sooners',
+        endpoint:   subscription.endpoint,
+        p256dh:     subscription.keys.p256dh,
+        auth:       subscription.keys.auth,
+        user_agent: req.headers['user-agent']?.substring(0, 200) || '',
+        active:     true
+      }, { onConflict: 'endpoint' });
+    if (error) throw error;
+    console.log(`📱 Push subscription saved for ${schoolId}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ Subscribe error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/push/unsubscribe', async (req, res) => {
+  try {
+    const { endpoint } = req.body;
+    if (!endpoint) return res.status(400).json({ error: 'No endpoint' });
+    await supabase.from('push_subscriptions').update({ active: false }).eq('endpoint', endpoint);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/push/resubscribe', async (req, res) => {
+  try {
+    const { subscription } = req.body;
+    if (!subscription?.endpoint) return res.status(400).json({ error: 'Invalid' });
+    await supabase.from('push_subscriptions').upsert({
+      endpoint: subscription.endpoint,
+      p256dh:   subscription.keys.p256dh,
+      auth:     subscription.keys.auth,
+      active:   true
+    }, { onConflict: 'endpoint' });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/push/send', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || authHeader !== `Bearer ${process.env.MCP_API_KEY}`) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const { schoolId, title, body, url, tag } = req.body;
+    if (!schoolId || !title || !body) {
+      return res.status(400).json({ error: 'schoolId, title, body required' });
+    }
+    const result = await sendPushToSchool(schoolId, {
+      title, body,
+      icon: '/icons/icon-192x192.png',
+      tag:  tag || `manual-${Date.now()}`,
+      url:  url || `/${schoolId}/`
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('❌ Manual push error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 console.log("🚪 Binding to PORT:", PORT);
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
+
 
