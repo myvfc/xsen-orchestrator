@@ -578,7 +578,25 @@ async function getSchoolAthletics(query) {
   
   // ── Map new tool names to what the MCP server understands ──
   const rawToolName = parseToolName(query);
-  const sport = parseSport(query);
+
+  // Override parseSport with explicit detection — more reliable than schools.js default
+  function detectSport(q) {
+    const t = q.toLowerCase();
+    if (/baseball/i.test(t)) return 'baseball';
+    if (/softball/i.test(t)) return 'softball';
+    if (/women.?s basketball|lady sooners|womens hoops/i.test(t)) return 'womens-basketball';
+    if (/men.?s basketball|basketball|hoops|bball/i.test(t)) return 'mens-basketball';
+    if (/women.?s soccer|soccer/i.test(t)) return 'womens-soccer';
+    if (/volleyball/i.test(t)) return 'womens-volleyball';
+    if (/wrestling/i.test(t)) return 'wrestling';
+    if (/gymnastics/i.test(t)) return 'gymnastics';
+    if (/women.?s golf/i.test(t)) return 'womens-golf';
+    if (/golf/i.test(t)) return 'mens-golf';
+    if (/tennis/i.test(t)) return 'mens-tennis';
+    return parseSport(q) || 'football'; // fallback to schools.js then football
+  }
+
+  const sport = detectSport(query);
 
   // Translate intent-based queries to specific MCP tools
   let toolName = rawToolName;
@@ -1605,7 +1623,7 @@ Common queries:
 - "John Mateer stats 2025" → use get_cfbd_history (player season stats)
 - "OU football schedule" → use get_school_athletics (ESPN has current + upcoming schedules for all sports)
 - "OU basketball schedule" → use get_school_athletics
-- "OU softball schedule" → use get_school_athletics
+- "OU softball schedule" → use get_school_athletics. If no data returned, tell user: "OU softball schedule data isn't available via my current data feed — for the full schedule visit soonersports.com or espn.com/college-softball"
 - "what games does OU have coming up" → use get_school_athletics
 - "upcoming games" → use get_school_athletics ONLY, do not also call get_espn_stats
 - "schedule" (any sport) → use get_school_athletics
@@ -1614,9 +1632,12 @@ Common queries:
 - "OU hoops schedule" → use get_cfbd_basketball
 - "softball score" → use get_ncaa_womens_sports
 - "softball roster" → use get_school_athletics (NOT get_ncaa_womens_sports)
+- "softball schedule" → use get_school_athletics (ESPN)
 - "volleyball schedule" → use get_ncaa_womens_sports
 - "women's basketball rankings" → use get_ncaa_womens_sports
+- "women's basketball schedule" → use get_ncaa_womens_sports (if season active) — if it returns 404/error, tell user the season has ended and direct them to soonersports.com for next season schedule
 - "soccer standings" → use get_ncaa_womens_sports
+- if any women's sports schedule returns an error or empty — respond: "The [sport] schedule isn't available right now. For the full schedule visit soonersports.com"
 - "gymnastics rankings" → use get_gymnastics (BOTH teams #1!)
 - "women's gymnastics score" → use get_gymnastics
 - "men's gymnastics roster" → use get_gymnastics
