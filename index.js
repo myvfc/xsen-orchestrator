@@ -675,7 +675,8 @@ async function getSchoolNews(query, schoolId) {
 
 // ─── PRE-ROUTING: NEWS INTENT DETECTION ──────────────────────────────────────
 function isNewsQuery(text = "") {
-  return /\b(latest news|breaking news|recent news|what'?s new|any news|news today|football news|softball news|baseball news|basketball news|gymnastics news|volleyball news|soccer news|wrestling news|injury report|who is hurt|who'?s hurt|who is out|who'?s out|roster move|transfer portal|transfer news|recruiting news|update|updates)\b/i.test(text);
+  // NOTE: injury terms removed — those route to get_school_athletics (ESPN) via GPT
+  return /\b(latest news|breaking news|recent news|what'?s new|any news|news today|football news|softball news|baseball news|basketball news|gymnastics news|volleyball news|soccer news|wrestling news|roster move|transfer portal|transfer news|recruiting news|update|updates)\b/i.test(text);
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
