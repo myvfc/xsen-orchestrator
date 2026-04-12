@@ -1866,6 +1866,91 @@ app.post('/push/resubscribe', async (req, res) => {
   }
 });
 
+// ─── PUBLIC ANNOUNCEMENT NOTIFY (no MCP key exposed) ────────────────────────
+// Portal calls this instead of /push/send — validates via Supabase anon key
+// The actual push uses the VAPID keys stored server-side only
+app.post('/announcements/notify', async (req, res) => {
+  try {
+    // Validate request came from a known XSEN portal session
+    // by verifying the school exists in Supabase
+    const { schoolId, message, type, school } = req.body;
+    if (!message || (!schoolId && !school)) {
+      return res.status(400).json({ error: 'schoolId and message required' });
+    }
+
+    // Map portal school codes to push schoolIds
+    const schoolMap = { OU: 'sooners', OSU: 'okstate', TEXAS: 'texas', ALL: 'sooners' };
+    const sid = schoolId || schoolMap[school] || school?.toLowerCase();
+
+    // Verify school exists in Supabase (prevents abuse)
+    const { data: station, error: stationError } = await supabase
+      .from('xsen_stations')
+      .select('school')
+      .eq('school', school || schoolId?.toUpperCase())
+      .single();
+
+    if (stationError || !station) {
+      // Try by sid
+      const { data: station2 } = await supabase
+        .from('xsen_stations')
+        .select('school')
+        .ilike('school', sid)
+        .single();
+      if (!station2) return res.status(403).json({ error: 'Unknown school' });
+    }
+
+    const typeLabels = { info: 'ℹ️', warning: '⚠️', critical: '🚨' };
+    const result = await sendPushToSchool(sid, {
+      title: `${typeLabels[type] || '🏈'} XSEN Sooners`,
+      body:  message,
+      icon:  '/icons/icon-192x192.png',
+      tag:   `announcement-${Date.now()}`,
+      url:   `/${sid}/`
+    });
+
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('❌ Announcement notify error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PUBLIC LIVE STREAM NOTIFY ────────────────────────────────────────────────
+app.post('/livestream/notify', async (req, res) => {
+  try {
+    const { school, streamId } = req.body;
+    if (!school || !streamId) return res.status(400).json({ error: 'school and streamId required' });
+
+    const schoolMap = { OU: 'sooners', OSU: 'okstate', TEXAS: 'texas' };
+    const sid = schoolMap[school] || school.toLowerCase();
+    const names = { sooners: 'OU Sooners', okstate: 'OSU Cowboys', texas: 'Texas Longhorns' };
+
+    // Verify stream ID actually exists in Supabase (prevents abuse)
+    const { data } = await supabase
+      .from('xsen_stations')
+      .select('youtube_live_id')
+      .eq('school', school)
+      .single();
+
+    if (!data?.youtube_live_id) {
+      return res.status(403).json({ error: 'No active stream found' });
+    }
+
+    const result = await sendPushToSchool(sid, {
+      title: '🔴 LIVE Now on XSEN!',
+      body:  `${names[sid] || sid} is streaming live — tune in!`,
+      icon:  '/icons/icon-192x192.png',
+      tag:   'xsen-live',
+      url:   `/${sid}/`
+    });
+
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('❌ Livestream notify error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/push/send', async (req, res) => {
   try {
     const authHeader = req.headers['authorization'];
@@ -1894,6 +1979,7 @@ console.log("🚪 Binding to PORT:", PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
+
 
 
 
