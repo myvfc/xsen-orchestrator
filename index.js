@@ -567,10 +567,15 @@ async function getGymnastics(query) {
   }
 }
 
-async function getSchoolAthletics(query) {
-  console.log(`\n🏫 School Athletics Request: "${query}"`);
-  
-  const school = detectSchool(query);
+// ── FIX 1: Accept schoolId parameter so routing uses the request school,
+//           not keyword detection against the message text ──────────────────
+async function getSchoolAthletics(query, schoolId) {
+  console.log(`\n🏫 School Athletics Request: "${query}" schoolId: ${schoolId}`);
+
+  // Use schoolId from request if provided, otherwise fall back to keyword detection
+  const school = schoolId
+    ? getAllSchools().find(s => s.id === schoolId) || detectSchool(query)
+    : detectSchool(query);
   
   if (!school) {
     return { error: "Could not determine which school you're asking about" };
@@ -582,17 +587,17 @@ async function getSchoolAthletics(query) {
   // Override parseSport with explicit detection — more reliable than schools.js default
   function detectSport(q) {
     const t = q.toLowerCase();
-    if (/baseball/i.test(t)) return 'baseball';
-    if (/softball/i.test(t)) return 'softball';
-    if (/women.?s basketball|lady sooners|womens hoops/i.test(t)) return 'womens-basketball';
-    if (/men.?s basketball|basketball|hoops|bball/i.test(t)) return 'mens-basketball';
-    if (/women.?s soccer|soccer/i.test(t)) return 'womens-soccer';
-    if (/volleyball/i.test(t)) return 'womens-volleyball';
-    if (/wrestling/i.test(t)) return 'wrestling';
-    if (/gymnastics/i.test(t)) return 'gymnastics';
-    if (/women.?s golf/i.test(t)) return 'womens-golf';
-    if (/golf/i.test(t)) return 'mens-golf';
-    if (/tennis/i.test(t)) return 'mens-tennis';
+    if (/baseball/i.test(t)) return 'baseball';
+    if (/softball/i.test(t)) return 'softball';
+    if (/women.?s basketball|lady sooners|womens hoops/i.test(t)) return 'womens-basketball';
+    if (/men.?s basketball|basketball|hoops|bball/i.test(t)) return 'mens-basketball';
+    if (/women.?s soccer|soccer/i.test(t)) return 'womens-soccer';
+    if (/volleyball/i.test(t)) return 'womens-volleyball';
+    if (/wrestling/i.test(t)) return 'wrestling';
+    if (/gymnastics/i.test(t)) return 'gymnastics';
+    if (/women.?s golf/i.test(t)) return 'womens-golf';
+    if (/golf/i.test(t)) return 'mens-golf';
+    if (/tennis/i.test(t)) return 'mens-tennis';
     return parseSport(q) || 'football'; // fallback to schools.js then football
   }
 
@@ -694,7 +699,6 @@ async function getSchoolNews(query, schoolId) {
 
 // ─── PRE-ROUTING: NEWS INTENT DETECTION ──────────────────────────────────────
 function isNewsQuery(text = "") {
-  // NOTE: injury terms removed — those route to get_school_athletics (ESPN) via GPT
   return /\b(latest news|breaking news|recent news|what'?s new|any news|news today|football news|softball news|baseball news|basketball news|gymnastics news|volleyball news|soccer news|wrestling news|roster move|transfer portal|transfer news|recruiting news|update|updates)\b/i.test(text);
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -800,7 +804,6 @@ const tools = [
     type: "function",
     function: {
       name: "get_school_athletics",
-      // ── UPDATED: expanded to cover all new athletics.js capabilities ──
       description: "Get school athletics data via ESPN/CFBD APIs. Use for: ROSTERS, PLAYER BIOS, SCHEDULES (all sports — use this for any schedule query including football, basketball, baseball, softball, volleyball, soccer), DEPTH CHARTS, INJURY REPORTS, CONFERENCE STANDINGS, SEASON STATS, TEAM INFO, and FOOTBALL RECRUITING. Available for: Oklahoma (OU, Sooners). NOTE: Recruiting is FOOTBALL ONLY. For live/current scores use ESPN tools instead. ALWAYS use this for schedule queries — not get_cfbd_history.",
       parameters: {
         type: "object",
@@ -853,7 +856,6 @@ try {
 async function sendPushToSchool(schoolId, payload) {
   if (!vapidConfigured) return { sent: 0, failed: 0 };
 
-  // Normalize schoolId — portal uses 'OU', subscriptions saved as 'sooners'
   const schoolIdMap = { 'OU': 'sooners', 'OSU': 'okstate', 'TEXAS': 'texas', 'ALL': 'sooners' };
   const normalizedId = schoolIdMap[schoolId] || schoolId;
 
@@ -1559,7 +1561,7 @@ app.post("/chat", async (req, res) => {
     if (isNewsQuery(rawText)) {
       console.log(`📰 Pre-routing news query: "${rawText}"`);
       const newsResult = await getSchoolNews(rawText, schoolId);
-      const newsText = newsResult.data || "No current news available. Check soonersports.com for the latest.";
+      const newsText = newsResult.data || "No current news available. Check the school's athletics site for the latest.";
       await logMessages(sessionId, schoolId, rawText, newsText, 0);
       return res.json({ response: newsText });
     }
@@ -1600,75 +1602,7 @@ IMPORTANT TOOL USAGE RULES:
 - get_school_athletics: For ROSTERS, PLAYER BIOS, DEPTH CHARTS, INJURY REPORTS, STANDINGS, PLAYER STATS, TEAM INFO, and FOOTBALL RECRUITING
 - get_school_news: For BREAKING NEWS, ROSTER MOVES, TRANSFERS, and RECRUITING UPDATES from our news feed
 
-SUPPORTED SCHOOLS (for get_school_athletics):
-- Oklahoma (OU, Sooners) - data via ESPN/CFBD APIs
-
-IMPORTANT — get_school_athletics routing:
-- "who is starting at [position]" / "depth chart" / "starters" → use get_school_athletics
-- "who is hurt" / "injury report" / "who is out" → use get_school_news FIRST, then get_school_athletics if no results
-- "conference standings" / "where is OU in the Big 12" → use get_school_athletics
-- "statistical leaders" / "leading passer" / "leading rusher" → use get_school_athletics
-- "team info" / "stadium" / "team colors" → use get_school_athletics
-- "recruiting class" / "top commits" / "who did OU sign" / "recruiting ranking" → use get_school_athletics
-- "recruiting at [position]" / "QB recruits" / "WR commits" → use get_school_athletics
-
-IMPORTANT — RECRUITING IS FOOTBALL ONLY:
-get_school_athletics recruiting data covers FOOTBALL recruiting only via CFBD API.
-If asked about basketball recruiting or any other sport's recruiting, respond:
-"Basketball recruiting data isn't available in my current data sources — for the latest OU basketball recruiting news, check soonersports.com or 247Sports."
-
-IMPORTANT GYMNASTICS NOTE: Women's gymnastics has individual event rankings (vault, bars, beam, floor). Men's gymnastics only has OVERALL TEAM rankings - do not make up individual event rankings for men's gymnastics.
-
-When tools return errors, acknowledge the issue and provide what information you can from your general knowledge about OU sports. When get_cfbd_history returns a completed season schedule with W/L results, present it as the most recent completed season and note that the next season schedule will be available closer to fall.
-Common queries:
-- Any question about a specific player, position, or starter → use get_school_athletics
-- "what's the score?" → use get_espn_stats
-- "OU vs Texas all-time" → use get_cfbd_history
-- "John Mateer stats 2025" → use get_cfbd_history (player season stats)
-- "OU football schedule" → use get_school_athletics (ESPN has current + upcoming schedules for all sports)
-- "OU basketball schedule" → use get_school_athletics
-- "OU softball schedule" → use get_school_athletics. If no data returned, tell user: "OU softball schedule data isn't available via my current data feed — for the full schedule visit soonersports.com or espn.com/college-softball"
-- "what games does OU have coming up" → use get_school_athletics
-- "upcoming games" → use get_school_athletics ONLY, do not also call get_espn_stats
-- "schedule" (any sport) → use get_school_athletics
-- "basketball score" → use get_cfbd_basketball
-- "Sam Godwin stats" → use get_cfbd_basketball
-- "OU hoops schedule" → use get_cfbd_basketball
-- "softball score" → use get_ncaa_womens_sports
-- "softball roster" → use get_school_athletics (NOT get_ncaa_womens_sports)
-- "softball schedule" → use get_school_athletics (ESPN)
-- "volleyball schedule" → use get_ncaa_womens_sports
-- "women's basketball rankings" → use get_ncaa_womens_sports
-- "women's basketball schedule" → use get_ncaa_womens_sports (if season active) — if it returns 404/error, tell user the season has ended and direct them to soonersports.com for next season schedule
-- "soccer standings" → use get_ncaa_womens_sports
-- if any women's sports schedule returns an error or empty — respond: "The [sport] schedule isn't available right now. For the full schedule visit soonersports.com"
-- "gymnastics rankings" → use get_gymnastics (BOTH teams #1!)
-- "women's gymnastics score" → use get_gymnastics
-- "men's gymnastics roster" → use get_gymnastics
-- "OU softball roster" → use get_school_athletics
-- "player bio" → use get_school_athletics
-- "team news" → use get_school_athletics
-- "history" (alone) → ask what kind of history they want
-- "trivia" → use get_trivia_question
-- "show me highlights" → use search_videos
-- "injury report" → use get_school_news
-- "who is hurt" → use get_school_news
-- "who is out" → use get_school_news
-- "latest news" → use get_school_news
-- "roster move" → use get_school_news
-- "transfer" → use get_school_news
-- "breaking news" → use get_school_news
-- "who is starting at QB" → use get_school_athletics (depth chart)
-- "depth chart" → use get_school_athletics
-- "conference standings" → use get_school_athletics
-- "statistical leaders" → use get_school_athletics
-- "recruiting class" → use get_school_athletics (FOOTBALL ONLY)
-- "top commits" → use get_school_athletics (FOOTBALL ONLY)
-- "QB recruits" → use get_school_athletics (FOOTBALL ONLY)
-
-GYMNASTICS FUN FACT: Both OU men's and women's gymnastics teams are currently ranked #1 in the nation! This is incredibly rare and worth celebrating!
-
-Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS end every response with the SUGGESTED: block from your persona prompt — no exceptions, even when data is sparse.`
+Be conversational and enthusiastic. Use the school greeting appropriately. ALWAYS end every response with the SUGGESTED: block from your persona prompt — no exceptions, even when data is sparse.`
       },
       ...session.chat
     ];
@@ -1694,7 +1628,7 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS e
         let functionResult;
 
         switch (functionName) {
-         case "get_trivia_question":
+          case "get_trivia_question":
             functionResult = await getTriviaQuestion(schoolId);
             if (!functionResult.error) {
               session.active = true;
@@ -1703,10 +1637,10 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS e
             }
             break;
           
-         case "search_videos":
-           console.log(`🎬 Video search for: "${functionArgs.query}"`);
-           functionResult = await searchVideos(functionArgs.query, schoolId);
-           break;
+          case "search_videos":
+            console.log(`🎬 Video search for: "${functionArgs.query}"`);
+            functionResult = await searchVideos(functionArgs.query, schoolId);
+            break;
           
           case "get_espn_stats":
             console.log(`📊 ESPN stats for: "${functionArgs.query}"`);
@@ -1717,7 +1651,7 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS e
             console.log(`📚 CFBD history for: "${functionArgs.query}"`);
             functionResult = await getCFBDHistory(functionArgs.query);
             if (functionResult.error) {
-              functionResult.userMessage = "I'm having trouble accessing historical data right now. The CFBD service might be down or the query format needs adjustment.";
+              functionResult.userMessage = "I'm having trouble accessing historical data right now.";
             }
             break;
           
@@ -1725,7 +1659,7 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS e
             console.log(`🏀 CFBD basketball for: "${functionArgs.query}"`);
             functionResult = await getCFBDBasketball(functionArgs.query);
             if (functionResult.error) {
-              functionResult.userMessage = "I'm having trouble accessing basketball data right now. The basketball service might be down or the query format needs adjustment.";
+              functionResult.userMessage = "I'm having trouble accessing basketball data right now.";
             }
             break;
           
@@ -1733,7 +1667,7 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS e
             console.log(`🏐 NCAA Women's Sports for: "${functionArgs.query}"`);
             functionResult = await getNCAAWomensSports(functionArgs.query);
             if (functionResult.error) {
-              functionResult.userMessage = "I'm having trouble accessing women's sports data right now. The NCAA women's sports service might be down or the query format needs adjustment.";
+              functionResult.userMessage = "I'm having trouble accessing women's sports data right now.";
             }
             break;
           
@@ -1741,13 +1675,14 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS e
             console.log(`🤸 Gymnastics for: "${functionArgs.query}"`);
             functionResult = await getGymnastics(functionArgs.query);
             if (functionResult.error) {
-              functionResult.userMessage = "I'm having trouble accessing gymnastics data right now. The gymnastics service might be down or the query format needs adjustment.";
+              functionResult.userMessage = "I'm having trouble accessing gymnastics data right now.";
             }
             break;
           
+          // ── FIX 2: Pass schoolId to getSchoolAthletics ──────────────
           case "get_school_athletics":
-            console.log(`🏫 School Athletics for: "${functionArgs.query}"`);
-            functionResult = await getSchoolAthletics(functionArgs.query);
+            console.log(`🏫 School Athletics for: "${functionArgs.query}" schoolId: ${schoolId}`);
+            functionResult = await getSchoolAthletics(functionArgs.query, schoolId);
             if (functionResult.error) {
               functionResult.userMessage = "I'm having trouble accessing that school's athletics data right now.";
             }
@@ -1797,10 +1732,8 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS e
     console.error("❌ Orchestrator error:", err);
     const schoolId = req.body?.school || "sooners";
     const school = getAllSchools().find(s => s.id === schoolId) || getAllSchools().find(s => s.isDefault);
-    const errorGreeting = school?.displayName === "OSU" ? "Sorry Cowboy" : "Sorry Sooner";
-    
     return res.json({
-      response: `${errorGreeting} — something went wrong on my end. Please try again.`
+      response: `Sorry — something went wrong on my end. Please try again.`
     });
   }
 });
@@ -1808,7 +1741,6 @@ Be conversational and enthusiastic. Use "Boomer Sooner!" appropriately. ALWAYS e
 /* ------------------------------------------------------------------ */
 /*                           START SERVER                              */
 /* ------------------------------------------------------------------ */
-
 
 // ─── PUSH NOTIFICATION ROUTES ─────────────────────────────────────────────────
 
@@ -1870,23 +1802,16 @@ app.post('/push/resubscribe', async (req, res) => {
   }
 });
 
-// ─── PUBLIC ANNOUNCEMENT NOTIFY (no MCP key exposed) ────────────────────────
-// Portal calls this instead of /push/send — validates via Supabase anon key
-// The actual push uses the VAPID keys stored server-side only
 app.post('/announcements/notify', async (req, res) => {
   try {
-    // Validate request came from a known XSEN portal session
-    // by verifying the school exists in Supabase
     const { schoolId, message, type, school } = req.body;
     if (!message || (!schoolId && !school)) {
       return res.status(400).json({ error: 'schoolId and message required' });
     }
 
-    // Map portal school codes to push schoolIds
     const schoolMap = { OU: 'sooners', OSU: 'okstate', TEXAS: 'texas', ALL: 'sooners' };
     const sid = schoolId || schoolMap[school] || school?.toLowerCase();
 
-    // Verify school exists in Supabase (prevents abuse)
     const { data: station, error: stationError } = await supabase
       .from('xsen_stations')
       .select('school')
@@ -1894,7 +1819,6 @@ app.post('/announcements/notify', async (req, res) => {
       .single();
 
     if (stationError || !station) {
-      // Try by sid
       const { data: station2 } = await supabase
         .from('xsen_stations')
         .select('school')
@@ -1919,7 +1843,6 @@ app.post('/announcements/notify', async (req, res) => {
   }
 });
 
-// ─── PUBLIC LIVE STREAM NOTIFY ────────────────────────────────────────────────
 app.post('/livestream/notify', async (req, res) => {
   try {
     const { school, streamId } = req.body;
@@ -1929,7 +1852,6 @@ app.post('/livestream/notify', async (req, res) => {
     const sid = schoolMap[school] || school.toLowerCase();
     const names = { sooners: 'OU Sooners', okstate: 'OSU Cowboys', texas: 'Texas Longhorns' };
 
-    // Verify stream ID actually exists in Supabase (prevents abuse)
     const { data } = await supabase
       .from('xsen_stations')
       .select('youtube_live_id')
