@@ -853,14 +853,18 @@ try {
 async function sendPushToSchool(schoolId, payload) {
   if (!vapidConfigured) return { sent: 0, failed: 0 };
 
+  // Normalize schoolId — portal uses 'OU', subscriptions saved as 'sooners'
+  const schoolIdMap = { 'OU': 'sooners', 'OSU': 'okstate', 'TEXAS': 'texas', 'ALL': 'sooners' };
+  const normalizedId = schoolIdMap[schoolId] || schoolId;
+
   const { data: subs, error } = await supabase
     .from('push_subscriptions')
     .select('*')
-    .eq('school_id', schoolId)
+    .eq('school_id', normalizedId)
     .eq('active', true);
 
   if (error || !subs?.length) {
-    console.log(`📭 No push subscribers for ${schoolId}`);
+    console.log(`📭 No push subscribers for ${normalizedId} (input: ${schoolId})`);
     return { sent: 0, failed: 0 };
   }
 
