@@ -918,7 +918,7 @@ async function checkYouTubeLiveStreams() {
           body:  `${names[schoolId] || schoolId} is streaming live — tune in!`,
           icon:  '/icons/icon-192x192.png',
           tag:   'xsen-live',
-          url:   `/${schoolId}/`
+          url:   `https://xsen.fun/${schoolId}/app.html`
         });
       }
 
@@ -1909,7 +1909,7 @@ app.post('/announcements/notify', async (req, res) => {
       body:  message,
       icon:  '/icons/icon-192x192.png',
       tag:   `announcement-${Date.now()}`,
-      url:   `/${sid}/`
+      url:   `https://xsen.fun/${sid}/app.html`
     });
 
     res.json({ success: true, ...result });
@@ -1945,7 +1945,7 @@ app.post('/livestream/notify', async (req, res) => {
       body:  `${names[sid] || sid} is streaming live — tune in!`,
       icon:  '/icons/icon-192x192.png',
       tag:   'xsen-live',
-      url:   `/${sid}/`
+      url:   `https://xsen.fun/${sid}/app.html`
     });
 
     res.json({ success: true, ...result });
@@ -1969,7 +1969,7 @@ app.post('/push/send', async (req, res) => {
       title, body,
       icon: '/icons/icon-192x192.png',
       tag:  tag || `manual-${Date.now()}`,
-      url:  url || `/${schoolId}/`
+      url:  url || `https://xsen.fun/${schoolId}/app.html`
     });
     res.json(result);
   } catch (err) {
