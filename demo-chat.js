@@ -1,19 +1,20 @@
 // ── demo-chat.js ──────────────────────────────────────────────────────────────
-// Add this route to your existing Railway orchestrator (glorious-appreciation)
+// Add this route to your existing Railway orchestrator
 // Route: POST /demo-chat
 // Body:  { message: string, school: string, schoolName: string }
 //
-// Requires: ANTHROPIC_API_KEY in Railway environment variables
+// Uses your existing OPENAI_API_KEY environment variable.
+// No new API keys needed.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const Anthropic = require('@anthropic-ai/sdk');
+const https = require('https');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// Simple in-memory rate limiter (resets on deploy — fine for demo)
+// ── Rate limiter (in-memory, resets on deploy) ────────────────────────────────
 const rateLimitMap = new Map();
-const RATE_LIMIT   = 20;   // max requests per IP per hour
-const RATE_WINDOW  = 3600000; // 1 hour in ms
+const RATE_LIMIT   = 20;       // requests per IP per window
+const RATE_WINDOW  = 3600000;  // 1 hour
 
 function isRateLimited(ip) {
   const now  = Date.now();
@@ -24,38 +25,89 @@ function isRateLimited(ip) {
   return false;
 }
 
+// ── System prompt ─────────────────────────────────────────────────────────────
 function buildSystemPrompt(schoolName, schoolSlug) {
   return `You are the official AI fan companion for ${schoolName}, part of the XSEN sports network.
 
 Your job is to answer fan questions about ${schoolName} sports — schedules, scores, rosters, history, highlights, and news.
 
 RULES — follow these strictly:
-1. ALWAYS use the web_search tool to find current information before answering factual questions about scores, schedules, rosters, injuries, or recent events. Never answer these from memory alone.
-2. If web search returns no useful results, say clearly: "I don't have that information right now — I'll have better coverage once the full channel is live."
+1. Use web search to find current information before answering factual questions about scores, schedules, rosters, injuries, or recent events. Never answer these from memory alone.
+2. If you cannot find reliable information, say clearly: "I don't have that information right now — I'll have better coverage once the full channel is live."
 3. NEVER make up scores, stats, player names, or events. If uncertain, say so.
 4. Only answer questions about ${schoolName} sports or XSEN. For off-topic questions, politely redirect.
-5. Keep answers concise — 2-4 sentences max unless the fan asks for detail.
-6. End responses with 2-3 suggested follow-up questions labeled: SUGGESTED:\n- Question 1\n- Question 2
-7. You are a demo — if asked, you can acknowledge this is a preview of what fans would experience on a live channel.
-8. Tone: enthusiastic, knowledgeable, fan-friendly. You're a superfan, not a press release.
+5. Keep answers concise — 2-4 sentences unless the fan asks for detail.
+6. End every response with 2-3 suggested follow-up questions in this exact format:
+SUGGESTED:
+- Question 1
+- Question 2
+7. Tone: enthusiastic, knowledgeable, fan-friendly. You are a superfan, not a press release.
+8. This is a demo — if asked, acknowledge it's a preview of what fans experience on a live XSEN channel.
 
-School: ${schoolName} (slug: ${schoolSlug})
-Current date context: use web search for anything time-sensitive.`;
+School: ${schoolName} (slug: ${schoolSlug})`;
 }
 
+// ── OpenAI call with web search ───────────────────────────────────────────────
+function callOpenAI(systemPrompt, userMessage) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify({
+      model: 'gpt-4o-search-preview',
+      web_search_options: { search_context_size: 'medium' },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userMessage  }
+      ],
+      max_tokens: 600
+    });
+
+    const options = {
+      hostname: 'api.openai.com',
+      path:     '/v1/chat/completions',
+      method:   'POST',
+      headers:  {
+        'Content-Type':   'application/json',
+        'Authorization':  `Bearer ${OPENAI_API_KEY}`,
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) { reject(new Error(parsed.error.message)); return; }
+          const text = parsed.choices?.[0]?.message?.content || '';
+          resolve(text.trim());
+        } catch(e) { reject(e); }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+// ── Route handler ─────────────────────────────────────────────────────────────
 async function demoChatHandler(req, res) {
-  // CORS
   res.setHeader('Access-Control-Allow-Origin',  '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
   if (req.method !== 'POST')   { res.writeHead(405); res.end('Method not allowed'); return; }
 
-  // Rate limit by IP
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
   if (isRateLimited(ip)) {
     res.writeHead(429, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }));
+    res.end(JSON.stringify({ response: 'Too many requests — please try again in a little while.' }));
+    return;
+  }
+
+  if (!OPENAI_API_KEY) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ response: 'API key not configured.' }));
     return;
   }
 
@@ -71,58 +123,33 @@ async function demoChatHandler(req, res) {
         return;
       }
 
-      // Sanitize
       const cleanMessage    = String(message).slice(0, 500);
       const cleanSchool     = String(school).slice(0, 50).toLowerCase().replace(/[^a-z0-9-]/g, '');
       const cleanSchoolName = String(schoolName || school).slice(0, 100);
 
-      const response = await client.messages.create({
-        model:      'claude-sonnet-4-20250514',
-        max_tokens: 600,
-        system:     buildSystemPrompt(cleanSchoolName, cleanSchool),
-        tools: [
-          {
-            type: 'web_search_20250305',
-            name: 'web_search'
-          }
-        ],
-        messages: [
-          { role: 'user', content: cleanMessage }
-        ]
-      });
-
-      // Extract text from response (may include tool_use blocks)
-      const textContent = response.content
-        .filter(block => block.type === 'text')
-        .map(block => block.text)
-        .join('\n')
-        .trim();
+      const response = await callOpenAI(buildSystemPrompt(cleanSchoolName, cleanSchool), cleanMessage);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ response: textContent || "I couldn't find that information right now — try asking something else." }));
+      res.end(JSON.stringify({ response: response || "I couldn't find that right now — try asking something else." }));
 
     } catch (err) {
       console.error('[demo-chat] Error:', err.message);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Internal server error', response: "Something went wrong — please try again." }));
+      res.end(JSON.stringify({ response: "Something went wrong — please try again in a moment." }));
     }
   });
 }
 
 module.exports = { demoChatHandler };
 
-// ── HOW TO WIRE THIS INTO YOUR EXISTING SERVER ────────────────────────────────
-//
-// In your main server.js / index.js, add:
+// ── WIRING ────────────────────────────────────────────────────────────────────
+// In your main server.js / index.js add:
 //
 //   const { demoChatHandler } = require('./demo-chat');
 //
-//   // Inside your request router:
-//   if (pathname === '/demo-chat' && req.method === 'POST') {
-//     return demoChatHandler(req, res);
-//   }
+//   if (pathname === '/demo-chat') return demoChatHandler(req, res);
 //
-// Make sure ANTHROPIC_API_KEY is set in Railway environment variables.
-// The @anthropic-ai/sdk package is likely already in your package.json.
-// If not: npm install @anthropic-ai/sdk
+// Uses your existing OPENAI_API_KEY env var. No new packages needed.
 // ─────────────────────────────────────────────────────────────────────────────
+
+
