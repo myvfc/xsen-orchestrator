@@ -1739,6 +1739,83 @@ Be conversational and enthusiastic. Use the school greeting appropriately. ALWAY
 });
 
 /* ------------------------------------------------------------------ */
+/*                         DEMO CHAT ROUTE                             */
+/* ------------------------------------------------------------------ */
+
+// Simple in-memory rate limiter — resets on deploy, fine for demo
+const demoRateMap = new Map();
+const DEMO_RATE_LIMIT  = 20;
+const DEMO_RATE_WINDOW = 3600000; // 1 hour
+
+function isDemoRateLimited(ip) {
+  const now  = Date.now();
+  const data = demoRateMap.get(ip) || { count: 0, start: now };
+  if (now - data.start > DEMO_RATE_WINDOW) { demoRateMap.set(ip, { count: 1, start: now }); return false; }
+  if (data.count >= DEMO_RATE_LIMIT) return true;
+  demoRateMap.set(ip, { count: data.count + 1, start: data.start });
+  return false;
+}
+
+function buildDemoSystemPrompt(schoolName, schoolSlug) {
+  return `You are the official AI fan companion for ${schoolName}, part of the XSEN sports network.
+
+Answer fan questions about ${schoolName} sports — schedules, scores, rosters, history, highlights, and news.
+
+RULES:
+1. Use web search to find current information before answering factual questions about scores, schedules, rosters, injuries, or recent events. Never answer these from memory alone.
+2. If you cannot find reliable information say: "I don't have that information right now — I'll have better coverage once the full channel is live."
+3. NEVER make up scores, stats, player names, or events. If uncertain, say so.
+4. Only answer questions about ${schoolName} sports or XSEN. Politely redirect anything off-topic.
+5. Keep answers concise — 2-4 sentences unless the fan asks for more detail.
+6. End every response with 2-3 suggested follow-up questions in this exact format:
+SUGGESTED:
+- Question 1
+- Question 2
+7. Tone: enthusiastic, knowledgeable, fan-friendly. You are a superfan, not a press release.
+8. If asked, acknowledge this is a demo preview of what fans experience on a live XSEN channel.
+
+School: ${schoolName} (slug: ${schoolSlug})`;
+}
+
+app.post('/demo-chat', async (req, res) => {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+
+  if (isDemoRateLimited(ip)) {
+    return res.status(429).json({ response: 'Too many requests — please try again in a little while.' });
+  }
+
+  const { message, school, schoolName } = req.body;
+
+  if (!message || !school) {
+    return res.status(400).json({ error: 'message and school are required' });
+  }
+
+  const cleanMessage    = String(message).slice(0, 500);
+  const cleanSchool     = String(school).slice(0, 50).toLowerCase().replace(/[^a-z0-9-]/g, '');
+  const cleanSchoolName = String(schoolName || school).slice(0, 100);
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-search-preview',
+      web_search_options: { search_context_size: 'medium' },
+      messages: [
+        { role: 'system', content: buildDemoSystemPrompt(cleanSchoolName, cleanSchool) },
+        { role: 'user',   content: cleanMessage }
+      ],
+      max_tokens: 600
+    });
+
+    const text = response.choices?.[0]?.message?.content?.trim() || "I couldn't find that right now — try asking something else.";
+    console.log(`🎮 Demo chat [${cleanSchool}]: "${cleanMessage.substring(0,60)}…"`);
+    return res.json({ response: text });
+
+  } catch (err) {
+    console.error('❌ Demo chat error:', err.message);
+    return res.json({ response: "Something went wrong — please try again in a moment." });
+  }
+});
+
+/* ------------------------------------------------------------------ */
 /*                           START SERVER                              */
 /* ------------------------------------------------------------------ */
 
@@ -1905,6 +1982,11 @@ console.log("🚪 Binding to PORT:", PORT);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 XSEN Orchestrator running on port ${PORT}`);
 });
+
+
+
+
+
 
 
 
