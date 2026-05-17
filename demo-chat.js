@@ -1,12 +1,3 @@
-// ── demo-chat.js ──────────────────────────────────────────────────────────────
-// Add this route to your existing Railway orchestrator
-// Route: POST /demo-chat
-// Body:  { message: string, school: string, schoolName: string }
-//
-// Uses your existing OPENAI_API_KEY environment variable.
-// No new API keys needed.
-// ─────────────────────────────────────────────────────────────────────────────
-
 const https = require('https');
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
